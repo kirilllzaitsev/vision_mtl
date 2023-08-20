@@ -1,9 +1,12 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
 
-import hydra
-from hydra.core.config_store import ConfigStore
-from omegaconf import MISSING, OmegaConf
+from dotenv import load_dotenv
+from omegaconf import MISSING
+
+load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
+# load_dotenv("/mnt/wext/projects/vision_mtl/vision_mtl/.env")
 
 
 @dataclass
@@ -18,20 +21,61 @@ class BasicModelConfig(ModelConfig):
 
 
 @dataclass
-class cfg:
-    model: ModelConfig
+class LoggerConfig:
+    api_key: str = os.environ["comet_api_key"]
+
+
+@dataclass
+class DataConfig:
+    data_dir: str = os.environ["data_base_dir"]
+    num_classes: int = 19
+    height: int = 128
+    width: int = 256
+
+    class_names: list = field(
+        default_factory=lambda: [
+            "road",
+            "sidewalk",
+            "building",
+            "wall",
+            "fence",
+            "pole",
+            "traffic light",
+            "traffic sign",
+            "vegetation",
+            "terrain",
+            "sky",
+            "person",
+            "rider",
+            "car",
+            "truck",
+            "bus",
+            "train",
+            "motorcycle",
+            "bicycle",
+        ]
+    )
+
+    batch_size: int = 32
+    num_workers: int = 4
+    pin_memory: bool = True
+    drop_last: bool = True
+    shuffle: bool = True
+    val_split: float = 0.1
+    test_split: float = 0.1
+    img_size: int = 224
+    grayscale: bool = False
+    normalize: bool = True
+    augment: bool = True
+
+
+@dataclass
+class Config:
+    model: ModelConfig = BasicModelConfig()
+    data: DataConfig = DataConfig()
+    logger: LoggerConfig = LoggerConfig()
     debug: bool = False
+    seed: int = 11
 
 
-cs = ConfigStore.instance()
-cs.store(name="base_config", node=cfg)
-cs.store(group="model", name="base_basic_model", node=BasicModelConfig)
-
-
-@hydra.main(version_base=None, config_path="configs", config_name="config")
-def my_app(conf: cfg) -> None:
-    print(OmegaConf.to_yaml(conf))
-
-
-if __name__ == "__main__":
-    my_app()
+cfg = Config()
