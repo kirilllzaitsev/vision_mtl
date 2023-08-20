@@ -46,7 +46,11 @@ class PhotopicVisionDataset(Dataset):
                 transformed_depth["mask"],
             )
 
-        mask = mask.long()
+            mask = mask.long()
+        else:
+            img = torch.from_numpy(img).float()
+            mask = torch.from_numpy(mask).long()
+            depth = torch.from_numpy(depth).float()
 
         sample = {"img": img, "mask": mask, "depth": depth}
         return sample
