@@ -26,32 +26,39 @@ class PhotopicVisionDataset(Dataset):
         self.paths = self.parse_paths()
 
     def __len__(self) -> int:
-        return len(self.imgs)
+        return len(self.paths)
 
     def __getitem__(self, idx) -> tuple:
-        data_path, labels_paths = self.imgs[idx], self.labels[idx]
-        mask_path, depth_path = labels_paths["mask"], labels_paths["depth"]
-        image = cv2.imread(data_path, cv2.COLOR_BGR2RGB)
-        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-        depth = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
+        data_path, mask_path, depth_path = (
+            self.paths["img"][idx],
+            self.paths["mask"][idx],
+            self.paths["depth"][idx],
+        )
+        img = np.load(data_path)
+        mask = np.load(mask_path)
+        depth = np.load(depth_path)
         if self.transforms:
-            transformed = self.transforms(image=image, mask=mask)
-            transformed_depth = self.transforms(image=image, mask=depth)
-            image, mask, depth = (
+            transformed = self.transforms(image=img, mask=mask)
+            transformed_depth = self.transforms(image=img, mask=depth)
+            img, mask, depth = (
                 transformed["image"],
                 transformed["mask"],
                 transformed_depth["mask"],
             )
-        return image, mask, depth
+
+        mask = mask.long()
+
+        sample = {"img": img, "mask": mask, "depth": depth}
+        return sample
 
     def parse_paths(self) -> dict:
-        dict_paths = {"image": [], "labels": {"mask": [], "depth": []}}
+        dict_paths = {"img": [], "mask": [], "depth": []}
         base_dir = f"{self.data_base_dir}/{self.stage}"
         for dir_name, _, filenames in os.walk(base_dir):
             for filename in filenames:
                 name = filename.split(".")[0]
-                dict_paths["image"].append(f"{base_dir}/image/{name}.npy")
-                dict_paths["labels"]["mask"].append(f"{base_dir}/label/{name}.npy")
-                dict_paths["labels"]["depth"].append(f"{base_dir}/depth/{name}.npy")
+                dict_paths["img"].append(f"{base_dir}/image/{name}.npy")
+                dict_paths["mask"].append(f"{base_dir}/label/{name}.npy")
+                dict_paths["depth"].append(f"{base_dir}/depth/{name}.npy")
 
         return dict_paths
