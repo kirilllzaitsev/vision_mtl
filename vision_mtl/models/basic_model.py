@@ -1,11 +1,10 @@
-import copy
-
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
+from segmentation_models_pytorch.base import SegmentationHead
 
 
-class DepthModel(nn.Module):
+class BasicMTLModel(nn.Module):
     def __init__(
         self,
         encoder_name="timm-mobilenetv3_large_100",
@@ -34,7 +33,12 @@ class DepthModel(nn.Module):
         self.encoder = model.encoder
         self.decoder = model.decoder
         self.segm_head = model.segmentation_head
-        self.depth_head = copy.deepcopy(model.segmentation_head)
+        self.depth_head = SegmentationHead(
+            in_channels=decoder_channels[-1],
+            out_channels=1,
+            activation=activation,
+            kernel_size=3,
+        )
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
@@ -59,7 +63,7 @@ class DepthModel(nn.Module):
 
 
 if __name__ == "__main__":
-    model = DepthModel()
+    model = BasicMTLModel()
     x = torch.randn(1, 3, 256, 256)
     y = model(x)
     print(y.shape)
