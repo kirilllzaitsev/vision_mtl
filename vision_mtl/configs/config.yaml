@@ -1,0 +1,11 @@
+defaults:
+  - base_config
+  - model: basic_model
+  - _self_
+
+debug: true
+
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .
