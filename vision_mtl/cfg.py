@@ -1,3 +1,5 @@
+import numpy as np
+
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,6 +55,7 @@ class DataConfig:
             "train",
             "motorcycle",
             "bicycle",
+            "artifact",
         ]
     )
 
@@ -70,10 +73,40 @@ class DataConfig:
 
 
 @dataclass
+class VisConfig:
+    rgb_palette: np.ndarray = np.array(
+        [
+            [63, 171, 212],
+            [109, 137, 117],
+            [24, 83, 42],
+            [148, 77, 185],
+            [122, 139, 58],
+            [32, 126, 85],
+            [17, 164, 215],
+            [124, 39, 146],
+            [161, 239, 20],
+            [40, 81, 119],
+            [149, 34, 38],
+            [166, 224, 205],
+            [134, 100, 230],
+            [123, 157, 137],
+            [11, 5, 225],
+            [60, 84, 80],
+            [173, 186, 12],
+            [199, 91, 22],
+            [170, 124, 184],
+            [119, 102, 69],
+        ]
+    )
+
+
+@dataclass
 class Config:
     model: ModelConfig = BasicModelConfig()
     data: DataConfig = DataConfig()
     logger: LoggerConfig = LoggerConfig()
+    vis: VisConfig = VisConfig()
+    
     debug: bool = False
     seed: int = 11
 
