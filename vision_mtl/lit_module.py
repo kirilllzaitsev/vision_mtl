@@ -1,7 +1,7 @@
 import typing as t
 from typing import Any, Dict, Tuple
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,6 +20,7 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         optim_dict: dict = None,
         lr: float = None,
         num_classes: int = cfg.data.num_classes,
+        device: str = cfg.device,
     ):
         self.example_input_array = torch.Tensor(1, 3, 128, 256)
         super().__init__()
@@ -29,8 +30,6 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         self.segm_criterion = nn.CrossEntropyLoss()
         self.depth_criterion = SILogLoss()
         self.optim_dict = optim_dict
-        # self._device = "cuda" if torch.cuda.is_available() else "cpu"
-        self._device = "cpu"
 
         self.step_outputs = {
             "loss": [],
@@ -45,12 +44,12 @@ class LightningPhotopicVisionModule(pl.LightningModule):
                 num_classes=num_classes,
                 ignore_index=None,
                 average="micro",
-            ).to(self._device),
+            ).to(device),
             "jaccard_index": JaccardIndex(
                 threshold=0.5,
                 num_classes=num_classes,
                 ignore_index=None,
-            ).to(self._device),
+            ).to(device),
             "fbeta_score": FBetaScore(
                 beta=1.0,
                 threshold=0.5,
@@ -58,7 +57,7 @@ class LightningPhotopicVisionModule(pl.LightningModule):
                 average="micro",
                 ignore_index=None,
                 mdmc_average="global",
-            ).to(self._device),
+            ).to(device),
         }
 
     def forward(self, x):
@@ -79,8 +78,10 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         segm_pred = F.softmax(input=segm_logits, dim=1)
         segm_predictions = torch.argmax(segm_pred, dim=1)
 
-        segm_validity_mask = (gt_mask != -1)
-        segm_validity_mask_with_channels = segm_validity_mask.unsqueeze(1).repeat(1, 19, 1, 1)
+        segm_validity_mask = gt_mask != -1
+        segm_validity_mask_with_channels = segm_validity_mask.unsqueeze(1).repeat(
+            1, 19, 1, 1
+        )
         segm_pred = segm_pred[segm_validity_mask_with_channels].reshape(-1, 19)
         segm_predictions = segm_predictions[segm_validity_mask]
         gt_mask = gt_mask[segm_validity_mask]
@@ -89,7 +90,7 @@ class LightningPhotopicVisionModule(pl.LightningModule):
 
         depth_predictions = F.sigmoid(input=depth_logits).permute(0, 2, 3, 1)
         loss_depth = self.depth_criterion(depth_predictions, gt_depth)
-        
+
         loss = loss_segm + loss_depth
 
         accuracy = self.metrics["accuracy"](segm_predictions, gt_mask)
