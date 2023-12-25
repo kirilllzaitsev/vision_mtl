@@ -181,6 +181,14 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         }
         return self.optim_dict if self.optim_dict else optimization_dictionary
 
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        if isinstance(batch, dict):
+            for key in batch.keys():
+                batch[key] = batch[key].to(device)
+        else:
+            batch = super().transfer_batch_to_device(batch, device, dataloader_idx)
+        return batch
+
 
 if __name__ == "__main__":
     model = BasicMTLModel(segm_classes=19)
