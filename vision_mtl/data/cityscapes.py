@@ -35,9 +35,12 @@ class PhotopicVisionDataset(Dataset):
             self.paths["depth"][idx],
         )
         img = np.load(data_path)
+        assert img.max() <= 1.0
         mask = np.load(mask_path)
-        depth = np.load(depth_path)
+        depth = np.load(depth_path).squeeze()
         if self.transforms:
+            img *= 255
+            img = img.astype(np.uint8)
             transformed = self.transforms(image=img, mask=mask)
             transformed_depth = self.transforms(image=img, mask=depth)
             img, mask, depth = (
@@ -45,10 +48,10 @@ class PhotopicVisionDataset(Dataset):
                 transformed["mask"],
                 transformed_depth["mask"],
             )
+            img = img.float() / 255
 
             mask = mask.long()
         else:
-            img = torch.from_numpy(img).float()
             mask = torch.from_numpy(mask).long()
             depth = torch.from_numpy(depth).float()
 
