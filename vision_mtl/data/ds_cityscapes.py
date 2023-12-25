@@ -1,19 +1,14 @@
 import os
 from typing import Any
 
-import albumentations as A
-import cv2
 import numpy as np
-import pandas as pd
 import torch
-import torchvision.transforms as T
-from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
 from vision_mtl.cfg import cfg
 
 
-class PhotopicVisionDataset(Dataset):
+class CityscapesDataset(Dataset):
     def __init__(
         self,
         stage: str,
@@ -35,10 +30,13 @@ class PhotopicVisionDataset(Dataset):
             self.paths["depth"][idx],
         )
         img = np.load(data_path)
+        assert img.max() <= 1.0
         mask = np.load(mask_path)
-        depth = np.load(depth_path)
+        depth = np.load(depth_path).squeeze()
         if self.transforms:
             transformed = self.transforms(image=img, mask=mask)
+            transformed_depth = self.transforms(image=img, mask=depth)
+            img, mask, depth = (
                 transformed["image"],
                 transformed["mask"],
                 transformed_depth["mask"],
@@ -46,10 +44,14 @@ class PhotopicVisionDataset(Dataset):
 
             mask = mask.long()
         else:
-            mask = torch.from_numpy(mask).long()
-            depth = torch.from_numpy(depth).float()
+            img = torch.from_numpy(img)
+            mask = torch.from_numpy(mask)
+            depth = torch.from_numpy(depth)
 
-            img = torch.from_numpy(img).float()
+        img = img.float()
+        mask = mask.long()
+        depth = depth.float()
+
         sample = {"img": img, "mask": mask, "depth": depth}
         return sample
 
