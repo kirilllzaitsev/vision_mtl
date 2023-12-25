@@ -1,6 +1,6 @@
 import typing as t
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
 from vision_mtl.cfg import cfg
 from vision_mtl.lit_datamodule import PhotopicVisionDataModule

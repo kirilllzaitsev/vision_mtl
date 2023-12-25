@@ -1,14 +1,12 @@
-import numpy as np
-
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 from dotenv import load_dotenv
 from omegaconf import MISSING
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
-# load_dotenv("/mnt/wext/projects/vision_mtl/vision_mtl/.env")
 
 
 @dataclass
@@ -106,7 +104,10 @@ class Config:
     data: DataConfig = DataConfig()
     logger: LoggerConfig = LoggerConfig()
     vis: VisConfig = VisConfig()
-    
+
+    device: str = "cpu"
+    device: str = "cuda"
+
     debug: bool = False
     seed: int = 11
 
