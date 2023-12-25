@@ -2,7 +2,7 @@ from typing import Union
 
 import albumentations as A
 import albumentations.pytorch as pytorch
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
@@ -32,30 +32,41 @@ class PhotopicVisionDataModule(pl.LightningDataModule):
         self.data_val = None
         self.data_test = None
         self.data_predict = None
+        self.save_hyperparameters()
 
     def setup(self, stage: str = None) -> None:
-        data_train = PhotopicVisionDataset(
-            stage="train",
-            data_base_dir=self.data_base_dir,
-            transforms=self.train_transform,
-        )
+        if stage == "fit" or stage is None:
+            data_train = PhotopicVisionDataset(
+                stage="train",
+                data_base_dir=self.data_base_dir,
+                transforms=self.train_transform,
+            )
 
-        train_len = int(len(data_train) * self.train_size)
+            train_len = int(len(data_train) * self.train_size)
 
-        self.data_train, self.data_val = torch.utils.data.random_split(
-            data_train,
-            [
-                train_len,
-                len(data_train) - train_len,
-            ],
-        )
-        self.data_val.transforms = self.test_transform
+            self.data_train, self.data_val = torch.utils.data.random_split(
+                data_train,
+                [
+                    train_len,
+                    len(data_train) - train_len,
+                ],
+            )
+            self.data_val.transforms = self.test_transform
+        if stage == "test" or stage is None:
+            self.data_test = PhotopicVisionDataset(
+                stage="val",
+                data_base_dir=self.data_base_dir,
+                transforms=self.test_transform,
+            )
+        if stage == "predict" or stage is None:
+            self.data_predict = PhotopicVisionDataset(
+                stage="val",
+                data_base_dir=self.data_base_dir,
+                transforms=self.test_transform,
+            )
 
-        self.data_predict = self.data_test = PhotopicVisionDataset(
-            stage="val",
-            data_base_dir=self.data_base_dir,
-            transforms=self.test_transform,
-        )
+    def teardown(self, stage: str) -> None:
+        return super().teardown(stage)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
