@@ -182,13 +182,17 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         }
         return self.optim_dict if self.optim_dict else optimization_dictionary
 
-    def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        if isinstance(batch, dict):
-            for key in batch.keys():
-                batch[key] = batch[key].to(device)
-        else:
-            batch = super().transfer_batch_to_device(batch, device, dataloader_idx)
-        return batch
+
+    def on_after_backward(self):
+        # example to inspect gradient information in tensorboard
+        if self.trainer.global_step % 25 == 0:  # don't make the tf file huge
+            params = self.state_dict()
+            for k, v in params.items():
+                grads = v
+                name = k
+                self.logger.experiment.add_histogram(
+                    tag=name, values=grads, global_step=self.trainer.global_step
+                )
 
 
 if __name__ == "__main__":
