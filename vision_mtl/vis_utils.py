@@ -8,7 +8,7 @@ from vision_mtl.cfg import cfg
 def plot_batch(batch):
     batch_size = len(batch["img"])
     ncols = 3
-    fig, axs = plt.subplots(batch_size, 3, figsize=(batch_size * 5, ncols*2))
+    fig, axs = plt.subplots(batch_size, 3, figsize=(batch_size * 5, ncols * 2))
     for i in range(batch_size):
         sample = {k: v[i] for k, v in batch.items()}
         plot_sample(sample, axs=axs[i] if batch_size > 1 else axs)
@@ -19,6 +19,7 @@ def plot_sample(x, axs=None):
     if axs is None:
         fig, axs = plt.subplots(1, len(x), figsize=(10, 10))
     for i, (k, v) in enumerate(x.items()):
+        v = v.detach().cpu().squeeze()
         if v.dim() == 3:
             axs[i].imshow(v.permute(1, 2, 0))
         else:
@@ -81,4 +82,47 @@ def plot_annotated_segm_mask_v1(mask, class_names):
         y = y.mean()
         x = x.mean()
         ax.text(x, y, class_name, fontsize=16, color="white")
+    plt.show()
+
+
+def plot_preds(batch_size, predict_dataloader, preds):
+    ncols = 1 + 2 + 2
+    fig, ax = plt.subplots(batch_size, ncols, figsize=(10, ncols * batch_size))
+    for row_idx, (sample, pred_sample) in enumerate(zip(predict_dataloader, preds)):
+        if batch_size == 1:
+            ax_0 = ax[0]
+            ax_1 = ax[1]
+            ax_2 = ax[2]
+            ax_3 = ax[3]
+            ax_4 = ax[4]
+        else:
+            ax_0 = ax[row_idx, 0]
+            ax_1 = ax[row_idx, 1]
+            ax_2 = ax[row_idx, 2]
+            ax_3 = ax[row_idx, 3]
+            ax_4 = ax[row_idx, 4]
+
+        img = sample["img"]
+        gt_depth = sample["depth"]
+        pred_depth = pred_sample["depth"]
+        gt_segm = sample["mask"]
+        pred_segm = pred_sample["segm"]
+
+        ax_0.imshow(img.squeeze().cpu().numpy().transpose(1, 2, 0))
+        ax_1.imshow(gt_depth.squeeze().cpu().numpy())
+        ax_2.imshow(pred_depth.squeeze().cpu().numpy())
+        ax_3.imshow(gt_segm.squeeze().cpu().numpy())
+        ax_4.imshow(pred_segm.squeeze().cpu().numpy())
+
+        ax_0.set_title("Input image")
+        ax_1.set_title("Ground truth depth")
+        ax_2.set_title("Prediction depth")
+        ax_3.set_title("Ground truth segm")
+        ax_4.set_title("Prediction segm")
+
+        for ax_ in [ax_1, ax_2, ax_3, ax_4]:
+            ax_.axis("off")
+
+        ax_0.set_ylabel(f"Sample {row_idx}")
+    # break
     plt.show()
