@@ -10,7 +10,7 @@ height, width = (cfg.data.height, cfg.data.width)
 train_transform = A.Compose(
     [
         A.Resize(height=height, width=width),
-        A.Normalize(mean=norm_mean, std=norm_std),
+        # A.Normalize(mean=norm_mean, std=norm_std),
         pytorch.ToTensorV2(),
     ]
 )
@@ -18,7 +18,7 @@ train_transform = A.Compose(
 test_transform = A.Compose(
     [
         A.Resize(height=height, width=width),
-        A.Normalize(mean=norm_mean, std=norm_std),
+        # A.Normalize(mean=norm_mean, std=norm_std),
         pytorch.ToTensorV2(),
     ]
 )

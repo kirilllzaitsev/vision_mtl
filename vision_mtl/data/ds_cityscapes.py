@@ -32,7 +32,7 @@ class CityscapesDataset(Dataset):
         img = np.load(data_path)
         assert img.max() <= 1.0
         mask = np.load(mask_path)
-        depth = np.load(depth_path).squeeze()
+        depth = np.load(depth_path)
         if self.transforms:
             transformed = self.transforms(image=img, mask=mask)
             transformed_depth = self.transforms(image=img, mask=depth)
