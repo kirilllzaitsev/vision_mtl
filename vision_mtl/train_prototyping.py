@@ -3,9 +3,9 @@ import torch
 
 from vision_mtl.cfg import cfg
 from vision_mtl.lit_datamodule import PhotopicVisionDataModule
-from vision_mtl.lit_module import LightningPhotopicVisionModule
 from vision_mtl.models.basic_model import BasicMTLModel
 from vision_mtl.utils import parse_args
+from vision_mtl.vis_utils import plot_preds
 
 # torch.set_float32_matmul_precision("medium")
 
@@ -23,18 +23,19 @@ from vision_mtl.losses import SILogLoss
 
 
 def calc_loss(
-    out, gt_mask, segm_validity_mask, gt_depth, segm_criterion, depth_criterion
+    out, gt_mask, gt_depth, segm_criterion, depth_criterion
 ):
     segm_logits = out["segm"]
     depth_logits = out["depth"]
 
-    segm_pred, _ = get_segm_preds(segm_validity_mask, segm_logits)
-    gt_mask = gt_mask[segm_validity_mask]
+    # segm_pred_probs, _ = get_segm_preds(segm_validity_mask, segm_logits)
+    # gt_mask = gt_mask[segm_validity_mask]
 
-    loss_segm = segm_criterion(segm_pred, gt_mask)
+    loss_segm = segm_criterion(segm_logits, gt_mask)
 
     depth_predictions = F.sigmoid(input=depth_logits).permute(0, 2, 3, 1)
     loss_depth = depth_criterion(depth_predictions, gt_depth)
+    # loss_depth = 0
 
     loss = loss_segm + loss_depth
     return loss
@@ -134,7 +135,6 @@ def train_model(
     logger = TensorBoardLogger("lightning_logs", name="prototyping")
 
     global_step = 0
-
     for epoch in range(num_epochs):
         print(f"### Epoch {epoch+1}/{num_epochs} ###")
         model.train()
@@ -153,7 +153,6 @@ def train_model(
             loss = calc_loss(
                 out,
                 gt_mask,
-                segm_validity_mask,
                 gt_depth,
                 segm_criterion,
                 depth_criterion,
@@ -204,7 +203,6 @@ def train_model(
                 loss = calc_loss(
                     out,
                     gt_mask,
-                    segm_validity_mask,
                     gt_depth,
                     segm_criterion,
                     depth_criterion,
@@ -264,3 +262,25 @@ train_model(
     args.num_epochs,
     cfg.device,
 )
+
+def predict_step(self, batch):
+    img = batch["img"]
+
+    out = self.forward(img)
+
+    segm_logits = out["segm"]
+    depth_logits = out["depth"]
+
+    segm_pred = F.softmax(input=segm_logits, dim=1)
+    segm_predictions = torch.argmax(segm_pred, dim=1)
+    depth_predictions = F.sigmoid(input=depth_logits).squeeze(1)
+    preds = {"segm": segm_predictions, "depth": depth_predictions}
+    return preds
+
+preds = []
+for pred_Batch in datamodule.predict_dataloader():
+    for k,v in pred_Batch.items():
+        pred_Batch[k] = v.to(cfg.device)
+    preds.append(predict_step(model, pred_Batch))
+
+plot_preds(args.batch_size, datamodule.predict_dataloader(), preds)
