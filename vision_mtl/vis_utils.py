@@ -104,9 +104,9 @@ def plot_preds(batch_size, predict_dataloader, preds):
 
         img = sample["img"]
         gt_depth = sample["depth"]
-        pred_depth = pred_sample["depth"]
+        pred_depth = pred_sample["depth"].detach()
         gt_segm = sample["mask"]
-        pred_segm = pred_sample["segm"]
+        pred_segm = pred_sample["segm"].detach()
 
         ax_0.imshow(img.squeeze().cpu().numpy().transpose(1, 2, 0))
         ax_1.imshow(gt_depth.squeeze().cpu().numpy())
