@@ -95,11 +95,6 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         loss_depth = self.depth_criterion(depth_predictions, gt_depth)
 
         loss = loss_segm + loss_depth
-        # loss = loss_segm
-        # loss = loss_depth
-        # loss = F.mse_loss(depth_predictions, gt_depth) + F.cross_entropy(
-        #     segm_pred, gt_mask
-        # )
 
         accuracy = self.metrics["accuracy"](segm_predictions, gt_mask)
         jaccard_index = self.metrics["jaccard_index"](segm_predictions, gt_mask)
@@ -119,6 +114,29 @@ class LightningPhotopicVisionModule(pl.LightningModule):
                 logger=True,
             )
         return loss
+
+    def training_step(self, batch: Any, batch_idx: Any):
+        return self.shared_step(batch=batch, stage="train")
+
+    def validation_step(self, batch: Any, batch_idx: Any):
+        return self.shared_step(batch=batch, stage="val")
+
+    def test_step(self, batch: Any, batch_idx: Any):
+        return self.shared_step(batch=batch, stage="test")
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0):
+        img = batch["img"]
+
+        out = self.forward(img)
+
+        segm_logits = out["segm"]
+        depth_logits = out["depth"]
+
+        segm_pred = F.softmax(input=segm_logits, dim=1)
+        segm_predictions = torch.argmax(segm_pred, dim=1)
+        depth_predictions = F.sigmoid(input=depth_logits).squeeze(1)
+        preds = {"segm": segm_predictions, "depth": depth_predictions}
+        return preds
 
     def shared_epoch_end(self, stage: Any):
         step_results = self.step_outputs[stage]
@@ -150,40 +168,17 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         self.log_dict(metrics, prog_bar=True, logger=True)
         return metrics
 
-    def training_step(self, batch: Any, batch_idx: Any):
-        return self.shared_step(batch=batch, stage="train")
-
     def on_train_epoch_end(self):
         metrics = self.shared_epoch_end(stage="train")
         return metrics
-
-    def validation_step(self, batch: Any, batch_idx: Any):
-        return self.shared_step(batch=batch, stage="val")
 
     def on_validation_epoch_end(self):
         metrics = self.shared_epoch_end(stage="val")
         return metrics
 
-    def test_step(self, batch: Any, batch_idx: Any):
-        return self.shared_step(batch=batch, stage="test")
-
     def on_test_epoch_end(self):
         metrics = self.shared_epoch_end(stage="test")
         return metrics
-
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0):
-        img = batch["img"]
-
-        out = self.forward(img)
-
-        segm_logits = out["segm"]
-        depth_logits = out["depth"]
-
-        segm_pred = F.softmax(input=segm_logits, dim=1)
-        segm_predictions = torch.argmax(segm_pred, dim=1)
-        depth_predictions = F.sigmoid(input=depth_logits).squeeze(1)
-        preds = {"segm": segm_predictions, "depth": depth_predictions}
-        return preds
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(params=self.parameters(), lr=self.hparams.lr)
@@ -203,13 +198,13 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         }
         return self.optim_dict if self.optim_dict else optimization_dictionary
 
-    # def transfer_batch_to_device(self, batch, device, dataloader_idx):
-    #     if isinstance(batch, dict):
-    #         for key in batch.keys():
-    #             batch[key] = batch[key].to(device)
-    #     else:
-    #         batch = super().transfer_batch_to_device(batch, device, dataloader_idx)
-    #     return batch
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        if isinstance(batch, dict):
+            for key in batch.keys():
+                batch[key] = batch[key].to(device)
+        else:
+            batch = super().transfer_batch_to_device(batch, device, dataloader_idx)
+        return batch
 
     def on_after_backward(self):
         # example to inspect gradient information in tensorboard
