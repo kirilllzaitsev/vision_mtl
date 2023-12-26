@@ -32,10 +32,13 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         self.optim_dict = optim_dict
 
         self.step_outputs = {
-            "loss": [],
-            "accuracy": [],
-            "jaccard_index": [],
-            "fbeta_score": [],
+            k: {
+                "loss": [],
+                "accuracy": [],
+                "jaccard_index": [],
+                "fbeta_score": [],
+            }
+            for k in ["train", "val", "test"]
         }
 
         self.metrics = {
@@ -71,7 +74,7 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         # assert gt_mask.ndim == 3
         # assert gt_mask.max() <= 22 and gt_mask.min() >= 0
 
-        out = self.forward(img.to(torch.float32))
+        out = self.forward(img)
         segm_logits = out["segm"]
         depth_logits = out["depth"]
 
@@ -92,38 +95,51 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         loss_depth = self.depth_criterion(depth_predictions, gt_depth)
 
         loss = loss_segm + loss_depth
+        # loss = loss_segm
+        # loss = loss_depth
+        # loss = F.mse_loss(depth_predictions, gt_depth) + F.cross_entropy(
+        #     segm_pred, gt_mask
+        # )
 
         accuracy = self.metrics["accuracy"](segm_predictions, gt_mask)
         jaccard_index = self.metrics["jaccard_index"](segm_predictions, gt_mask)
         fbeta_score = self.metrics["fbeta_score"](segm_predictions, gt_mask)
 
-        self.step_outputs["loss"].append(loss)
-        self.step_outputs["accuracy"].append(accuracy)
-        self.step_outputs["jaccard_index"].append(jaccard_index)
-        self.step_outputs["fbeta_score"].append(fbeta_score)
+        self.step_outputs[stage]["loss"].append(loss)
+        self.step_outputs[stage]["accuracy"].append(accuracy)
+        self.step_outputs[stage]["jaccard_index"].append(jaccard_index)
+        self.step_outputs[stage]["fbeta_score"].append(fbeta_score)
+        for k, v in self.step_outputs[stage].items():
+            self.log(
+                f"{stage}_{k}",
+                v[-1],
+                on_step=True,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
         return loss
 
     def shared_epoch_end(self, stage: Any):
-        loss = torch.mean(torch.tensor([loss for loss in self.step_outputs["loss"]]))
+        step_results = self.step_outputs[stage]
+        loss = torch.mean(torch.tensor([loss for loss in step_results["loss"]]))
 
         accuracy = torch.mean(
-            torch.tensor([accuracy for accuracy in self.step_outputs["accuracy"]])
+            torch.tensor([accuracy for accuracy in step_results["accuracy"]])
         )
 
         jaccard_index = torch.mean(
             torch.tensor(
-                [jaccard_index for jaccard_index in self.step_outputs["jaccard_index"]]
+                [jaccard_index for jaccard_index in step_results["jaccard_index"]]
             )
         )
 
         fbeta_score = torch.mean(
-            torch.tensor(
-                [fbeta_score for fbeta_score in self.step_outputs["fbeta_score"]]
-            )
+            torch.tensor([fbeta_score for fbeta_score in step_results["fbeta_score"]])
         )
 
-        for key in self.step_outputs.keys():
-            self.step_outputs[key].clear()
+        for key in step_results.keys():
+            step_results[key].clear()
 
         metrics = {
             f"{stage}_loss": loss,
@@ -131,25 +147,29 @@ class LightningPhotopicVisionModule(pl.LightningModule):
             f"{stage}_jaccard_index": jaccard_index,
             f"{stage}_fbeta_score": fbeta_score,
         }
-        self.log_dict(metrics, prog_bar=True)
+        self.log_dict(metrics, prog_bar=True, logger=True)
+        return metrics
 
     def training_step(self, batch: Any, batch_idx: Any):
         return self.shared_step(batch=batch, stage="train")
 
-    def on_train_epoch_end(self) -> None:
-        return self.shared_epoch_end(stage="train")
+    def on_train_epoch_end(self):
+        metrics = self.shared_epoch_end(stage="train")
+        return metrics
 
     def validation_step(self, batch: Any, batch_idx: Any):
         return self.shared_step(batch=batch, stage="val")
 
-    def on_validation_epoch_end(self) -> None:
-        return self.shared_epoch_end(stage="val")
+    def on_validation_epoch_end(self):
+        metrics = self.shared_epoch_end(stage="val")
+        return metrics
 
     def test_step(self, batch: Any, batch_idx: Any):
         return self.shared_step(batch=batch, stage="test")
 
-    def on_test_epoch_end(self) -> None:
-        return self.shared_epoch_end(stage="test")
+    def on_test_epoch_end(self):
+        metrics = self.shared_epoch_end(stage="test")
+        return metrics
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0):
         img = batch["img"]
@@ -170,10 +190,11 @@ class LightningPhotopicVisionModule(pl.LightningModule):
 
         scheduler_dict = {
             "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer=optimizer, patience=5
+                optimizer=optimizer, patience=5, factor=0.95, verbose=True
             ),
             "interval": "epoch",
-            "monitor": "val_loss",
+            # "monitor": "val_loss",
+            "monitor": "train_loss",
         }
 
         optimization_dictionary = {
@@ -182,6 +203,13 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         }
         return self.optim_dict if self.optim_dict else optimization_dictionary
 
+    # def transfer_batch_to_device(self, batch, device, dataloader_idx):
+    #     if isinstance(batch, dict):
+    #         for key in batch.keys():
+    #             batch[key] = batch[key].to(device)
+    #     else:
+    #         batch = super().transfer_batch_to_device(batch, device, dataloader_idx)
+    #     return batch
 
     def on_after_backward(self):
         # example to inspect gradient information in tensorboard
@@ -197,12 +225,13 @@ class LightningPhotopicVisionModule(pl.LightningModule):
 
 if __name__ == "__main__":
     model = BasicMTLModel(segm_classes=19)
-    module = LightningPhotopicVisionModule(model)
+    module = LightningPhotopicVisionModule(model).to(cfg.device)
     print(module)
+    batch_size = 1
     sample_batch = {
-        "img": torch.randn(4, 3, 128, 256),
-        "mask": torch.randint(0, 19, (4, 128, 256)),
-        "depth": torch.randn(4, 128, 256),
+        "img": torch.randn(batch_size, 3, 128, 256).to(cfg.device),
+        "mask": torch.randint(0, 19, (batch_size, 128, 256)).to(cfg.device),
+        "depth": torch.randn(batch_size, 128, 256).to(cfg.device),
     }
     module.training_step(sample_batch, 0)
     # print(out["segm"].shape)
