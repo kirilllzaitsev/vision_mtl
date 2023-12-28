@@ -22,7 +22,6 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         num_classes: int = cfg.data.num_classes,
         device: str = cfg.device,
     ):
-        self.example_input_array = torch.Tensor(1, 3, 128, 256)
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
         self.num_classes = num_classes
@@ -62,6 +61,7 @@ class LightningPhotopicVisionModule(pl.LightningModule):
                 mdmc_average="global",
             ).to(device),
         }
+        self.automatic_optimization = False
 
     def forward(self, x):
         return self.model(x)
@@ -69,27 +69,14 @@ class LightningPhotopicVisionModule(pl.LightningModule):
     def shared_step(self, batch, stage: str) -> torch.Tensor:
         img, gt_mask, gt_depth = batch["img"], batch["mask"], batch["depth"]
 
-        # assert img.ndim == 4
-        # assert img.max() <= 3 and img.min() >= -3
-        # assert gt_mask.ndim == 3
-        # assert gt_mask.max() <= 22 and gt_mask.min() >= 0
-
-        out = self.forward(img)
+        out = self(img)
         segm_logits = out["segm"]
         depth_logits = out["depth"]
 
-        segm_pred = F.softmax(input=segm_logits, dim=1)
-        segm_predictions = torch.argmax(segm_pred, dim=1)
+        segm_pred_probs = F.softmax(input=segm_logits, dim=1)
+        segm_predictions = torch.argmax(segm_pred_probs, dim=1)
 
-        segm_validity_mask = gt_mask != -1
-        segm_validity_mask_with_channels = segm_validity_mask.unsqueeze(1).repeat(
-            1, 19, 1, 1
-        )
-        segm_pred = segm_pred[segm_validity_mask_with_channels].reshape(-1, 19)
-        segm_predictions = segm_predictions[segm_validity_mask]
-        gt_mask = gt_mask[segm_validity_mask]
-
-        loss_segm = self.segm_criterion(segm_pred, gt_mask)
+        loss_segm = self.segm_criterion(segm_logits, gt_mask)
 
         depth_predictions = F.sigmoid(input=depth_logits).permute(0, 2, 3, 1)
         loss_depth = self.depth_criterion(depth_predictions, gt_depth)
