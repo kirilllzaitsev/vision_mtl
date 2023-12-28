@@ -7,8 +7,8 @@ import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
 
-from vision_mtl.data.ds_cityscapes import CityscapesDataset
-from vision_mtl.data.transforms import test_transform, train_transform
+from vision_mtl.data_modules.ds_cityscapes import CityscapesDataset
+from vision_mtl.data_modules.transforms import test_transform, train_transform
 
 
 class PhotopicVisionDataModule(pl.LightningDataModule):
