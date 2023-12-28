@@ -12,12 +12,13 @@ class BasicMTLModel(nn.Module):
         activation=None,
         segm_classes=19,
         decoder_first_channel=256,
+        num_decoder_layers=5,
         in_channels=3,
     ):
         super().__init__()
 
         decoder_channels = [decoder_first_channel]
-        for i in range(1, 5):
+        for i in range(1, num_decoder_layers):
             decoder_channels.append(decoder_first_channel // (2**i))
 
         model = smp.Unet(
