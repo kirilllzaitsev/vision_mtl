@@ -9,22 +9,50 @@ log.setLevel(logging.DEBUG)
 
 
 class AttentionModuleEncoder(nn.Module):
-    def __init__(self, in_channels, out_channels=None):
+    def __init__(
+        self,
+        in_channels,
+        out_channels=None,
+        prev_layer_out_channels=None,
+        is_first=False,
+    ):
         super().__init__()
 
+        if out_channels is None:
+            out_channels = in_channels
+        # if prev_layer_out_channels is None:
+        #     prev_layer_out_channels = in_channels
+
+        if is_first:
+            assert (
+                prev_layer_out_channels is None
+            ), "prev_layer_out_channels must be None for the first AttentionModuleEncoder"
+        self.is_first = is_first
+
+        # conv1 -> conv2 -> concat -> sigmoid -> conv3
         self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=1, padding=0)
         self.bn1 = nn.BatchNorm2d(num_features=in_channels)
         self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=1, padding=0)
-        self.bn2 = nn.BatchNorm2d(num_features=in_channels)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+        self.bn2 = nn.BatchNorm2d(num_features=out_channels)
         self.sigmoid = nn.Sigmoid()
-        self.conv3 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(num_features=in_channels)
+        self.conv3 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(num_features=out_channels)
         self.relu2 = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=2)
 
-    def forward(self, conv1_shared, conv2_shared):
-        conv1 = self.conv1(conv1_shared)
+    def forward(self, conv1_shared, conv2_shared, prev_layer_out=None):
+        if self.is_first:
+            conv1 = conv1_shared
+        else:
+            # downsample prev_layer_out
+            # prev_layer_out = self.maxpool(prev_layer_out)
+            assert (
+                prev_layer_out is not None
+            ), "prev_layer_out must be provided for non-first AttentionModuleEncoder"
+            conv1 = torch.cat((conv1_shared, prev_layer_out), dim=1)
+
+        conv1 = self.conv1(conv1)
         conv1 = self.bn1(conv1)
         conv1 = self.relu1(conv1)
 
@@ -45,7 +73,7 @@ class AttentionModuleEncoder(nn.Module):
 
 x_enc1 = torch.randn(1, 128, 256, 256)
 x_enc2 = torch.randn(1, 128, 256, 256)
-enc = AttentionModuleEncoder(in_channels=128)
+enc = AttentionModuleEncoder(in_channels=128, is_first=True)
 y = enc(conv1_shared=x_enc1, conv2_shared=x_enc2)
 log.debug(y.shape)
 
@@ -138,9 +166,11 @@ class MTANDown(nn.Module):
         self.pool = nn.MaxPool2d(2)
         self.task_attn_module = task_attn_module
 
-    def forward(self, x):
+    def forward(self, x, prev_layer_out=None):
         dconv_out = self.dconv(x)
-        task_attn_out = self.task_attn_module(conv1_shared=x, conv2_shared=dconv_out)
+        task_attn_out = self.task_attn_module(
+            conv1_shared=x, conv2_shared=dconv_out, prev_layer_out=prev_layer_out
+        )
         pool_out = self.pool(x)
         return pool_out, task_attn_out
 
@@ -193,7 +223,13 @@ class MTANMiniUnet(nn.Module):
         # dec = AttentionModuleDecoder(in_channels=256)
         factor = 2 if bilinear else 1
         task_attn_modules_enc = [
-            AttentionModuleEncoder(in_channels=128) for _ in range(2)
+            AttentionModuleEncoder(in_channels=128, out_channels=128, is_first=True),
+            AttentionModuleEncoder(
+                in_channels=128 + 128, out_channels=128, prev_layer_out_channels=128
+            ),
+            AttentionModuleEncoder(
+                in_channels=128 + 128, out_channels=128, prev_layer_out_channels=128
+            ),
         ]
         task_attn_modules_dec = [
             AttentionModuleDecoder(
@@ -204,6 +240,11 @@ class MTANMiniUnet(nn.Module):
                 out_channels=256,
                 prev_layer_out_channels=128 // factor,
             ),
+            AttentionModuleDecoder(
+                in_channels=256 + 128,
+                out_channels=256,
+                prev_layer_out_channels=256,
+            ),
         ]
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to know dimensionality of conv1 and conv2. it defines its own output dims!
@@ -211,6 +252,9 @@ class MTANMiniUnet(nn.Module):
         self.encoder1 = MTANDown(128, 128, task_attn_module=task_attn_modules_enc[0])
         self.encoder2 = MTANDown(
             128, 256 // factor, task_attn_module=task_attn_modules_enc[1]
+        )
+        self.encoder3 = MTANDown(
+            128, 256 // factor, task_attn_module=task_attn_modules_enc[2]
         )
 
         self.decoder1 = MTANUp(
@@ -220,10 +264,16 @@ class MTANMiniUnet(nn.Module):
             task_attn_module=task_attn_modules_dec[0],
         )
         self.decoder2 = MTANUp(
-            128 // factor + 128,
+            128 + 128 // factor,
             256,
             bilinear=bilinear,
             task_attn_module=task_attn_modules_dec[1],
+        )
+        self.decoder3 = MTANUp(
+            256 + 128,
+            256,
+            bilinear=bilinear,
+            task_attn_module=task_attn_modules_dec[2],
         )
 
         # supervision for the global net comes from the task heads
@@ -233,21 +283,27 @@ class MTANMiniUnet(nn.Module):
     def forward(self, x):
         x1 = self.in_conv(x)
         encoder1, task_attn_out_enc1 = self.encoder1(x1)
-        encoder2, task_attn_out_enc2 = self.encoder2(encoder1)
-
+        encoder2, task_attn_out_enc2 = self.encoder2(encoder1, task_attn_out_enc1)
         log.debug(f"{encoder1.shape=} {encoder2.shape=}")
         log.debug(f"{task_attn_out_enc1.shape=} {task_attn_out_enc2.shape=}")
+
+        encoder3, task_attn_out_enc3 = self.encoder3(encoder2, task_attn_out_enc2)
+        log.debug(f"{encoder3.shape=} {task_attn_out_enc3.shape=}")
+
         decoder1, task_attn_out_dec1 = self.decoder1(
-            encoder2, encoder1, task_attn_out_enc2
+            encoder3, encoder2, task_attn_out_enc3
         )
-        log.debug(f"{decoder1.shape=} {x1.shape=}")
-        log.debug(f"{task_attn_out_dec1.shape=}")
-        _, task_attn_out_dec2 = self.decoder2(
-            x1=decoder1, x2=x1, task_attn_prev_out=task_attn_out_dec1
+        decoder2, task_attn_out_dec2 = self.decoder2(
+            decoder1, encoder1, task_attn_out_dec1
+        )
+        log.debug(f"{decoder2.shape=} {x1.shape=}")
+        log.debug(f"{task_attn_out_dec2.shape=}")
+        _, task_attn_out_dec3 = self.decoder3(
+            x1=decoder2, x2=x1, task_attn_prev_out=task_attn_out_dec2
         )
 
         return {
-            "task_out": self.task_head(task_attn_out_dec2),
+            "task_out": self.task_head(task_attn_out_dec3),
         }
 
 
