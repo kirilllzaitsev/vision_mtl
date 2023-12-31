@@ -36,8 +36,6 @@ class DoubleConv(nn.Module):
         return self.double_conv(x)
 
 
-
-
 def get_joint_layer_names(all_layer_names):
     joint_layer_names = []
     for i, layer_name in enumerate(all_layer_names):
@@ -60,6 +58,7 @@ def get_joint_layer_names_before_stitch_for_unet(joint_layer_names):
         if (
             "encoder" in module_names_in_full_layer_name
             and len(module_names_in_full_layer_name) == 5
+            and int(module_names_in_full_layer_name[-1]) != 0
         ) or (
             "decoder" in module_names_in_full_layer_name
             and len(module_names_in_full_layer_name) == 4
