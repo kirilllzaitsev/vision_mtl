@@ -138,6 +138,48 @@ class CSNet(nn.Module):
                 }
         return model_features
 
+    def consider_encoder_layer_at_idx(self, layer_idx):
+        return (
+            layer_idx != 0
+            and layer_idx != self.num_encoder_layers - 1
+            and layer_idx != self.num_decoder_layers - 1
+        )
+
+    def consider_decoder_layer_at_idx(self, layer_idx):
+        return layer_idx != self.num_decoder_layers - 1
+
+    def get_stitch_channels(self, random_model, joint_layer_names_before_stitch):
+        stitch_channels = []
+        encoder_channels = []
+        for stitch_layer_name in joint_layer_names_before_stitch:
+            named_modules = [x for x in list(random_model.named_modules())[1:]]
+            for i, (layer_name, params) in enumerate(named_modules):
+                if layer_name == stitch_layer_name:
+                    last_conv_layer_idx = i - 1
+                    # while "conv" not in named_modules[last_conv_layer_idx][0]:
+                    while not isinstance(
+                        named_modules[last_conv_layer_idx][1], nn.Conv2d
+                    ):
+                        last_conv_layer_idx -= 1
+                    # print(f"{named_modules[last_conv_layer_idx][0]=}")
+                    # print(layer_name, named_modules[last_conv_layer_idx][1].out_channels)
+                    num_channels = named_modules[last_conv_layer_idx][1].out_channels
+                    if "encoder" in layer_name:
+                        layer_idx = int(
+                            re.match(self.encoder_block_regex, layer_name).group(1)
+                        )
+                        if self.consider_encoder_layer_at_idx(layer_idx):
+                            encoder_channels.append(num_channels)
+                    if "decoder" in layer_name:
+                        layer_idx = int(
+                            re.match(self.decoder_block_regex, layer_name).group(1)
+                        )
+                        if self.consider_decoder_layer_at_idx(layer_idx):
+                            num_channels += encoder_channels[-layer_idx - 1]
+                    stitch_channels.append(num_channels)
+                    # break
+        return stitch_channels
+
 
 def get_model_with_dense_preds(segm_classes=10, activation=None):
     backbone = Backbone(in_channels=3)
