@@ -1,7 +1,7 @@
 import typing as t
 from typing import Any, Dict, Tuple
 
-import lightning.pytorch as pl
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,6 +21,8 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         lr: float = None,
         num_classes: int = cfg.data.num_classes,
         device: str = cfg.device,
+        loss_segm_weight=1,
+        loss_depth_weight=1,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
@@ -29,6 +31,8 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         self.segm_criterion = nn.CrossEntropyLoss()
         self.depth_criterion = SILogLoss()
         self.optim_dict = optim_dict
+        self.loss_segm_weight = loss_segm_weight
+        self.loss_depth_weight = loss_depth_weight
 
         self.step_outputs = {
             k: {
@@ -81,7 +85,7 @@ class LightningPhotopicVisionModule(pl.LightningModule):
         depth_predictions = F.sigmoid(input=depth_logits).permute(0, 2, 3, 1)
         loss_depth = self.depth_criterion(depth_predictions, gt_depth)
 
-        loss = loss_segm + loss_depth
+        loss = self.loss_segm_weight * loss_segm + self.loss_depth_weight * loss_depth
 
         accuracy = self.metrics["accuracy"](segm_predictions, gt_mask)
         jaccard_index = self.metrics["jaccard_index"](segm_predictions, gt_mask)
