@@ -11,17 +11,20 @@ from vision_mtl.utils import get_module_by_name
 
 
 class CrossStitchLayer(nn.Module):
-    def __init__(self, num_tasks):
+    def __init__(self, num_tasks, num_channels=None):
         super(CrossStitchLayer, self).__init__()
         self.num_tasks = num_tasks
-        self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        nn.init.eye_(self.weights)
+        self.channels_wise_stitching = num_channels is not None
+        if self.channels_wise_stitching:
+            self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks, num_channels))
+        else:
+            self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks))
 
     def forward(self, mt_activations):
-        y = torch.einsum("aa,abcij->abcij", self.weights, mt_activations)
+        if self.channels_wise_stitching:
+            y = torch.einsum("aac,abcij->abcij", self.weights, mt_activations)
+        else:
+            y = torch.einsum("aa,abcij->abcij", self.weights, mt_activations)
         return y
 
 
