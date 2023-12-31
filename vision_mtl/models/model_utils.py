@@ -34,3 +34,35 @@ class DoubleConv(nn.Module):
 
     def forward(self, x):
         return self.double_conv(x)
+
+
+
+
+def get_joint_layer_names(all_layer_names):
+    joint_layer_names = []
+    for i, layer_name in enumerate(all_layer_names):
+        module_names_in_full_layer_name = layer_name.split(".")
+        if (
+            "encoder" in module_names_in_full_layer_name
+            and len(module_names_in_full_layer_name) == 5
+        ) or (
+            "decoder" in module_names_in_full_layer_name
+            and len(module_names_in_full_layer_name) == 4
+        ):
+            joint_layer_names.append(layer_name)
+    return joint_layer_names
+
+
+def get_joint_layer_names_before_stitch_for_unet(joint_layer_names):
+    joint_layer_names_before_stitch = []
+    for i, layer_name in enumerate(joint_layer_names):
+        module_names_in_full_layer_name = layer_name.split(".")
+        if (
+            "encoder" in module_names_in_full_layer_name
+            and len(module_names_in_full_layer_name) == 5
+        ) or (
+            "decoder" in module_names_in_full_layer_name
+            and len(module_names_in_full_layer_name) == 4
+        ):
+            joint_layer_names_before_stitch.append(layer_name)
+    return joint_layer_names_before_stitch
