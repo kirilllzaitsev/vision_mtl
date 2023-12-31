@@ -6,7 +6,10 @@ import torch.nn.functional as F
 from segmentation_models_pytorch.base import SegmentationHead
 
 from vision_mtl.models.basic_model import Backbone
-from vision_mtl.models.model_utils import concat_slightly_diff_sized_tensors, get_joint_layer_names_before_stitch_for_unet
+from vision_mtl.models.model_utils import (
+    concat_slightly_diff_sized_tensors,
+    get_joint_layer_names_before_stitch_for_unet,
+)
 from vision_mtl.utils import get_module_by_name
 
 
@@ -16,7 +19,9 @@ class CrossStitchLayer(nn.Module):
         self.num_tasks = num_tasks
         self.channels_wise_stitching = num_channels is not None
         if self.channels_wise_stitching:
-            self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks, num_channels))
+            self.weights = nn.Parameter(
+                torch.Tensor(num_tasks, num_tasks, num_channels)
+            )
         else:
             self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks))
 
@@ -29,7 +34,7 @@ class CrossStitchLayer(nn.Module):
 
 
 class CSNet(nn.Module):
-    def __init__(self, models: dict):
+    def __init__(self, models: dict, channels_wise_stitching=False):
         """A meta-network that stitches together multiple models using cross-stitch units
         as means of sharing information in the multi-task setting.
         Args:
@@ -48,10 +53,24 @@ class CSNet(nn.Module):
         self.joint_layer_names_before_stitch = (
             get_joint_layer_names_before_stitch_for_unet(self.joint_layer_names)
         )
-        self.cross_stitch_layers = {
-            layer_name: CrossStitchLayer(num_tasks=self.num_tasks)
-            for layer_name in self.joint_layer_names_before_stitch
-        }
+        if channels_wise_stitching:
+            self.stitch_channels = self.get_stitch_channels(
+                random_model, self.joint_layer_names_before_stitch
+            )
+            self.cross_stitch_layers = {
+                layer_name: CrossStitchLayer(
+                    num_tasks=self.num_tasks,
+                    num_channels=self.stitch_channels[layer_idx],
+                )
+                for layer_idx, layer_name in enumerate(
+                    self.joint_layer_names_before_stitch
+                )
+            }
+        else:
+            self.cross_stitch_layers = {
+                layer_name: CrossStitchLayer(num_tasks=self.num_tasks)
+                for layer_name in self.joint_layer_names_before_stitch
+            }
         self.num_encoder_layers = len(
             [
                 x
