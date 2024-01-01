@@ -229,28 +229,28 @@ class MTANMiniUnet(nn.Module):
             task_subnet_out_channels_enc[-1]
         ] + task_subnet_out_channels_dec[:-1]
 
-        task_attn_modules_enc = [
-            [
+        task_attn_modules_enc = nn.ModuleList([
+            nn.ModuleList([
                 AttentionModuleEncoder(
                     in_channels=task_attn_in_channels_enc[i],
                     out_channels=task_subnet_out_channels_enc[i],
                     prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[i],
                 )
                 for _ in range(self.num_tasks)
-            ]
+            ])
             for i in range(len(task_attn_in_channels_enc))
-        ]
-        task_attn_modules_dec = [
-            [
+        ])
+        task_attn_modules_dec = nn.ModuleList([
+            nn.ModuleList([
                 AttentionModuleDecoder(
                     in_channels=task_attn_in_channels_dec[i],
                     out_channels=task_subnet_out_channels_dec[i],
                     prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[i],
                 )
                 for _ in range(self.num_tasks)
-            ]
+            ])
             for i in range(len(task_attn_in_channels_dec))
-        ]
+        ])
 
         self.enc_layers = nn.ModuleList(
             [
