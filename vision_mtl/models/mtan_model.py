@@ -5,9 +5,7 @@ from torch import nn
 
 from vision_mtl.models.model_utils import DoubleConv, concat_slightly_diff_sized_tensors
 
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+log = logging.getLogger(__name__)
 
 
 class AttentionModuleEncoder(nn.Module):
@@ -187,87 +185,77 @@ class MTANMiniUnet(nn.Module):
         factor = 2 if bilinear else 1
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to know dimensionality of conv1 and conv2. it defines its own output dims!
-        global_subnet_enc_channels = [128, 256 // factor, 256 // factor]
-        global_subnet_dec_channels = [128 // factor, 256, 256]
+        global_subnet_enc_out_channels = [128, 256 // factor, 256 // factor]
+        global_subnet_dec_out_channels = [128 // factor, 256, 256]
+        global_subnet_enc_in_channels = [
+            self.in_hidden_channels,
+            global_subnet_enc_out_channels[0],
+            global_subnet_enc_out_channels[1],
+        ]
+        global_subnet_dec_in_channels = [
+            global_subnet_enc_out_channels[1] + global_subnet_enc_out_channels[2],
+            global_subnet_enc_out_channels[0] + global_subnet_dec_out_channels[0],
+            self.in_hidden_channels + global_subnet_dec_out_channels[1],
+        ]
 
-        task_subnet_channels_enc = [128, 128, 128]
-        task_subnet_channels_dec = [128 // factor, 256, 256]
-        task_attn_prev_layer_out_channels_enc = [None] + global_subnet_enc_channels[:-1]
+        task_subnet_out_channels_enc = [128, 128, 128]
+        task_subnet_out_channels_dec = [128 // factor, 256, 256]
+        task_attn_prev_layer_out_channels_enc = [None] + global_subnet_enc_out_channels[
+            :-1
+        ]
+        task_attn_in_channels_enc = [
+            self.in_hidden_channels,
+            task_subnet_out_channels_enc[0] + global_subnet_enc_out_channels[0],
+            task_subnet_out_channels_enc[1] + global_subnet_enc_out_channels[1],
+        ]
+        task_attn_in_channels_dec = [
+            global_subnet_enc_out_channels[0] + global_subnet_enc_out_channels[1],
+            global_subnet_enc_out_channels[1] + global_subnet_dec_out_channels[0],
+            global_subnet_enc_out_channels[2] + global_subnet_dec_out_channels[1],
+        ]
+
         task_attn_prev_layer_out_channels_dec = [
-            task_subnet_channels_enc[-1]
-        ] + task_subnet_channels_dec[:-1]
+            task_subnet_out_channels_enc[-1]
+        ] + task_subnet_out_channels_dec[:-1]
 
         task_attn_modules_enc = [
             AttentionModuleEncoder(
-                in_channels=self.in_hidden_channels,
-                out_channels=task_subnet_channels_enc[0],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[0],
-            ),
-            AttentionModuleEncoder(
-                in_channels=task_subnet_channels_enc[0] + global_subnet_enc_channels[0],
-                out_channels=task_subnet_channels_enc[1],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[1],
-            ),
-            AttentionModuleEncoder(
-                in_channels=task_subnet_channels_enc[1] + global_subnet_enc_channels[1],
-                out_channels=task_subnet_channels_enc[2],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[2],
-            ),
+                in_channels=task_attn_in_channels_enc[i],
+                out_channels=task_subnet_out_channels_enc[i],
+                prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[i],
+            )
+            for i in range(len(task_attn_in_channels_enc))
         ]
         task_attn_modules_dec = [
             AttentionModuleDecoder(
-                in_channels=global_subnet_enc_channels[0]
-                + global_subnet_enc_channels[1],
-                out_channels=task_subnet_channels_dec[0],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[0],
-            ),
-            AttentionModuleDecoder(
-                in_channels=global_subnet_enc_channels[1]
-                + global_subnet_dec_channels[0],
-                out_channels=task_subnet_channels_dec[1],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[1],
-            ),
-            AttentionModuleDecoder(
-                in_channels=global_subnet_enc_channels[2]
-                + global_subnet_dec_channels[1],
-                out_channels=task_subnet_channels_dec[2],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[2],
-            ),
+                in_channels=task_attn_in_channels_dec[i],
+                out_channels=task_subnet_out_channels_dec[i],
+                prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[i],
+            )
+            for i in range(len(task_attn_in_channels_dec))
         ]
 
-        self.encoder1 = MTANDown(
-            in_channels=self.in_hidden_channels,
-            out_channels=global_subnet_enc_channels[0],
-            task_attn_module=task_attn_modules_enc[0],
-        )
-        self.encoder2 = MTANDown(
-            in_channels=global_subnet_enc_channels[0],
-            out_channels=global_subnet_enc_channels[1],
-            task_attn_module=task_attn_modules_enc[1],
-        )
-        self.encoder3 = MTANDown(
-            in_channels=global_subnet_enc_channels[1],
-            out_channels=global_subnet_enc_channels[2],
-            task_attn_module=task_attn_modules_enc[2],
+        self.enc_layers = nn.ModuleList(
+            [
+                MTANDown(
+                    in_channels=global_subnet_enc_in_channels[i],
+                    out_channels=global_subnet_enc_out_channels[i],
+                    task_attn_module=task_attn_modules_enc[i],
+                )
+                for i in range(len(global_subnet_enc_in_channels))
+            ]
         )
 
-        self.decoder1 = MTANUp(
-            in_channels=global_subnet_enc_channels[1] + global_subnet_enc_channels[2],
-            out_channels=global_subnet_dec_channels[0],
-            bilinear=bilinear,
-            task_attn_module=task_attn_modules_dec[0],
-        )
-        self.decoder2 = MTANUp(
-            in_channels=global_subnet_enc_channels[0] + global_subnet_dec_channels[0],
-            out_channels=global_subnet_dec_channels[1],
-            bilinear=bilinear,
-            task_attn_module=task_attn_modules_dec[1],
-        )
-        self.decoder3 = MTANUp(
-            in_channels=self.in_hidden_channels + global_subnet_dec_channels[1],
-            out_channels=global_subnet_dec_channels[2],
-            bilinear=bilinear,
-            task_attn_module=task_attn_modules_dec[2],
+        self.dec_layers = nn.ModuleList(
+            [
+                MTANUp(
+                    in_channels=global_subnet_dec_in_channels[i],
+                    out_channels=global_subnet_dec_out_channels[i],
+                    bilinear=bilinear,
+                    task_attn_module=task_attn_modules_dec[i],
+                )
+                for i in range(len(global_subnet_dec_in_channels))
+            ]
         )
 
         # supervision for the global net comes from the task heads
@@ -275,32 +263,38 @@ class MTANMiniUnet(nn.Module):
 
     def forward(self, x):
         x1 = self.in_conv(x)
-        encoder1, task_attn_out_enc1 = self.encoder1(x1)
-        encoder2, task_attn_out_enc2 = self.encoder2(encoder1, task_attn_out_enc1)
-        log.debug(f"{encoder1.shape=} {encoder2.shape=}")
-        log.debug(f"{task_attn_out_enc1.shape=} {task_attn_out_enc2.shape=}")
-
-        encoder3, task_attn_out_enc3 = self.encoder3(encoder2, task_attn_out_enc2)
-        log.debug(f"{encoder3.shape=} {task_attn_out_enc3.shape=}")
-
-        decoder1, task_attn_out_dec1 = self.decoder1(
-            encoder3, encoder2, task_attn_out_enc3
-        )
-        decoder2, task_attn_out_dec2 = self.decoder2(
-            decoder1, encoder1, task_attn_out_dec1
-        )
-        log.debug(f"{decoder2.shape=} {x1.shape=}")
-        log.debug(f"{task_attn_out_dec2.shape=}")
-        _, task_attn_out_dec3 = self.decoder3(
-            x1=decoder2, x2=x1, task_attn_prev_out=task_attn_out_dec2
-        )
+        task_attn_out_enc = None
+        encoder = None
+        decoder = None
+        task_attn_out_dec = None
+        encoder_features = [x1]
+        for i in range(len(self.enc_layers)):
+            if i == 0:
+                encoder, task_attn_out_enc = self.enc_layers[i](x1)
+            else:
+                encoder, task_attn_out_enc = self.enc_layers[i](
+                    encoder, task_attn_out_enc
+                )
+            encoder_features.append(encoder)
+            log.debug(f"{encoder.shape=} {task_attn_out_enc.shape=}")
+        for i in range(len(self.dec_layers)):
+            if i == 0:
+                decoder, task_attn_out_dec = self.dec_layers[i](
+                    encoder_features[-1], encoder_features[-2], task_attn_out_enc
+                )
+            else:
+                decoder, task_attn_out_dec = self.dec_layers[i](
+                    decoder, encoder_features[-(i + 2)], task_attn_out_dec
+                )
+            log.debug(f"{decoder.shape=} {task_attn_out_dec.shape=}")
 
         return {
-            "task_out": self.task_head(task_attn_out_dec3),
+            "task_out": self.task_head(task_attn_out_dec),
         }
 
 
-mtan_mini_unet = MTANMiniUnet(in_channels=3)
-x = torch.randn(1, 3, 256, 256)
-y = mtan_mini_unet(x)
-log.debug(y["task_out"].shape)
+if __name__ == "__main__":
+    mtan_mini_unet = MTANMiniUnet(in_channels=3)
+    x = torch.randn(1, 3, 256, 256)
+    y = mtan_mini_unet(x)
+    log.debug(y["task_out"].shape)
