@@ -34,16 +34,16 @@ class AttentionModuleEncoder(nn.Module):
         self.relu2 = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=2)
 
-    def forward(self, conv1_shared, conv2_shared, prev_layer_out=None):
+    def forward(self, conv1_shared, conv2_shared, prev_layer_outs=None):
         if self.is_first:
             conv1 = conv1_shared
         else:
-            # downsample prev_layer_out
-            # prev_layer_out = self.maxpool(prev_layer_out)
+            # downsample prev_layer_outs
+            # prev_layer_outs = self.maxpool(prev_layer_outs)
             assert (
-                prev_layer_out is not None
-            ), "prev_layer_out must be provided for non-first AttentionModuleEncoder"
-            conv1 = torch.cat((conv1_shared, prev_layer_out), dim=1)
+                prev_layer_outs is not None
+            ), "prev_layer_outs must be provided for non-first AttentionModuleEncoder"
+            conv1 = torch.cat((conv1_shared, prev_layer_outs), dim=1)
 
         conv1 = self.conv1(conv1)
         conv1 = self.bn1(conv1)
@@ -73,7 +73,7 @@ class AttentionModuleDecoder(nn.Module):
         if prev_layer_out_channels is None:
             prev_layer_out_channels = in_channels
 
-        # in_channels * 2 since we are concatenating conv1_shared and prev_layer_out put in advance to have the same in_channels dim of the conv1_shared
+        # in_channels * 2 since we are concatenating conv1_shared and prev_layer_outs put in advance to have the same in_channels dim of the conv1_shared
         self.conv1 = nn.Conv2d(in_channels * 2, in_channels, kernel_size=1, padding=0)
         self.bn1 = nn.BatchNorm2d(num_features=in_channels)
         self.relu1 = nn.ReLU()
@@ -89,21 +89,21 @@ class AttentionModuleDecoder(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=2)
         self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
 
-    def forward(self, conv1_shared, prev_layer_out, conv2_shared):
-        prev_layer_out = self.conv3(prev_layer_out)
-        prev_layer_out = self.bn3(prev_layer_out)
-        prev_layer_out = self.relu2(prev_layer_out)
+    def forward(self, conv1_shared, prev_layer_outs, conv2_shared):
+        prev_layer_outs = self.conv3(prev_layer_outs)
+        prev_layer_outs = self.bn3(prev_layer_outs)
+        prev_layer_outs = self.relu2(prev_layer_outs)
 
-        if conv1_shared.shape[2:] != prev_layer_out.shape[2:]:
-            prev_layer_out = self.up(prev_layer_out)
+        if conv1_shared.shape[2:] != prev_layer_outs.shape[2:]:
+            prev_layer_outs = self.up(prev_layer_outs)
 
         assert conv1_shared.shape[2:] == conv2_shared.shape[2:]
 
-        # merge samp and prev_layer_out
+        # merge samp and prev_layer_outs
         log.debug(
-            f"{conv1_shared.shape=}\n{prev_layer_out.shape=}\n{conv2_shared.shape=}"
+            f"{conv1_shared.shape=}\n{prev_layer_outs.shape=}\n{conv2_shared.shape=}"
         )
-        merged = torch.cat((conv1_shared, prev_layer_out), dim=1)
+        merged = torch.cat((conv1_shared, prev_layer_outs), dim=1)
 
         conv1 = self.conv1(merged)
         conv1 = self.bn1(conv1)
@@ -122,20 +122,26 @@ class MTANDown(nn.Module):
     """Downscaling with maxpool then double conv"""
 
     def __init__(
-        self, in_channels, out_channels, task_attn_module: AttentionModuleEncoder
+        self, in_channels, out_channels, task_attn_modules: list[AttentionModuleEncoder]
     ):
         super().__init__()
         self.dconv = DoubleConv(in_channels, out_channels)
         self.pool = nn.MaxPool2d(2)
-        self.task_attn_module = task_attn_module
+        self.task_attn_modules = task_attn_modules
 
-    def forward(self, x, prev_layer_out=None):
+    def forward(self, x, prev_layer_outs=None):
         dconv_out = self.dconv(x)
-        task_attn_out = self.task_attn_module(
-            conv1_shared=x, conv2_shared=dconv_out, prev_layer_out=prev_layer_out
-        )
+        task_attn_outs = []
+        for i, task_attn_module in enumerate(self.task_attn_modules):
+            task_attn_outs.append(
+                task_attn_module(
+                    conv1_shared=x,
+                    conv2_shared=dconv_out,
+                    prev_layer_outs=prev_layer_outs[i] if prev_layer_outs else None,
+                )
+            )
         pool_out = self.pool(x)
-        return pool_out, task_attn_out
+        return pool_out, task_attn_outs
 
 
 class MTANUp(nn.Module):
@@ -145,7 +151,7 @@ class MTANUp(nn.Module):
         self,
         in_channels,
         out_channels,
-        task_attn_module: AttentionModuleDecoder,
+        task_attn_modules: list[AttentionModuleDecoder],
         bilinear=True,
     ):
         super().__init__()
@@ -158,28 +164,32 @@ class MTANUp(nn.Module):
                 in_channels, in_channels // 2, kernel_size=2, stride=2
             )
             self.conv = DoubleConv(in_channels, out_channels)
-        self.task_attn_module = task_attn_module
+        self.task_attn_modules = task_attn_modules
 
-    def forward(self, x1, x2, task_attn_prev_out):
+    def forward(self, x1, x2, task_attn_prev_outs):
         x1 = self.up(x1)
         merged_enc_dec = concat_slightly_diff_sized_tensors(x1, x2)
         conv_out = self.conv(merged_enc_dec)
         log.debug(
-            f"{merged_enc_dec.shape=}\n{task_attn_prev_out.shape=}\n{conv_out.shape=}"
+            f"{merged_enc_dec.shape=}\n{task_attn_prev_outs[0].shape=}\n{conv_out.shape=}"
         )
-        # TODO: there should be many task_attn_outs, since each corresponds to a different task
-        task_attn_out = self.task_attn_module(
-            conv1_shared=merged_enc_dec,
-            prev_layer_out=task_attn_prev_out,
-            conv2_shared=conv_out,
-        )
-        return conv_out, task_attn_out
+        task_attn_outs = []
+        for i, task_attn_module in enumerate(self.task_attn_modules):
+            task_attn_outs.append(
+                task_attn_module(
+                    conv1_shared=merged_enc_dec,
+                    prev_layer_outs=task_attn_prev_outs[i],
+                    conv2_shared=conv_out,
+                )
+            )
+        return conv_out, task_attn_outs
 
 
 class MTANMiniUnet(nn.Module):
-    def __init__(self, in_channels, bilinear=True):
+    def __init__(self, in_channels, map_tasks_to_heads, bilinear=True):
         super().__init__()
 
+        self.num_tasks = len(map_tasks_to_heads)
         self.in_hidden_channels = 128
         self.in_conv = DoubleConv(in_channels, self.in_hidden_channels)
 
@@ -220,19 +230,25 @@ class MTANMiniUnet(nn.Module):
         ] + task_subnet_out_channels_dec[:-1]
 
         task_attn_modules_enc = [
-            AttentionModuleEncoder(
-                in_channels=task_attn_in_channels_enc[i],
-                out_channels=task_subnet_out_channels_enc[i],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[i],
-            )
+            [
+                AttentionModuleEncoder(
+                    in_channels=task_attn_in_channels_enc[i],
+                    out_channels=task_subnet_out_channels_enc[i],
+                    prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[i],
+                )
+                for _ in range(self.num_tasks)
+            ]
             for i in range(len(task_attn_in_channels_enc))
         ]
         task_attn_modules_dec = [
-            AttentionModuleDecoder(
-                in_channels=task_attn_in_channels_dec[i],
-                out_channels=task_subnet_out_channels_dec[i],
-                prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[i],
-            )
+            [
+                AttentionModuleDecoder(
+                    in_channels=task_attn_in_channels_dec[i],
+                    out_channels=task_subnet_out_channels_dec[i],
+                    prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[i],
+                )
+                for _ in range(self.num_tasks)
+            ]
             for i in range(len(task_attn_in_channels_dec))
         ]
 
@@ -241,7 +257,7 @@ class MTANMiniUnet(nn.Module):
                 MTANDown(
                     in_channels=global_subnet_enc_in_channels[i],
                     out_channels=global_subnet_enc_out_channels[i],
-                    task_attn_module=task_attn_modules_enc[i],
+                    task_attn_modules=task_attn_modules_enc[i],
                 )
                 for i in range(len(global_subnet_enc_in_channels))
             ]
@@ -253,16 +269,14 @@ class MTANMiniUnet(nn.Module):
                     in_channels=global_subnet_dec_in_channels[i],
                     out_channels=global_subnet_dec_out_channels[i],
                     bilinear=bilinear,
-                    task_attn_module=task_attn_modules_dec[i],
+                    task_attn_modules=task_attn_modules_dec[i],
                 )
                 for i in range(len(global_subnet_dec_in_channels))
             ]
         )
 
         # supervision for the global net comes from the task heads
-        # self.task_heads = nn.Conv2d(256, 1, kernel_size=1)
         self.map_tasks_to_heads = nn.ModuleDict(map_tasks_to_heads)
-        self.num_tasks = num_tasks
 
     def forward(self, x):
         x1 = self.in_conv(x)
@@ -279,7 +293,7 @@ class MTANMiniUnet(nn.Module):
                     encoder, task_attn_outs_enc
                 )
             encoder_features.append(encoder)
-            log.debug(f"{encoder.shape=} {task_attn_outs_enc.shape=}")
+            log.debug(f"{encoder.shape=} {task_attn_outs_enc[0].shape=}")
         for i in range(len(self.dec_layers)):
             if i == 0:
                 decoder, task_attn_outs_dec = self.dec_layers[i](
@@ -298,7 +312,7 @@ class MTANMiniUnet(nn.Module):
 
 
 if __name__ == "__main__":
-    num_tasks = 1
+    num_tasks = 2
     map_tasks_to_heads = {
         f"task{i}": nn.Conv2d(
             256,
@@ -307,7 +321,7 @@ if __name__ == "__main__":
         )
         for i in range(num_tasks)
     }
-    mtan_mini_unet = MTANMiniUnet(in_channels=3)
+    mtan_mini_unet = MTANMiniUnet(in_channels=3, map_tasks_to_heads=map_tasks_to_heads)
     x = torch.randn(1, 3, 256, 256)
     y = mtan_mini_unet(x)
     print(y["task0"].shape)
