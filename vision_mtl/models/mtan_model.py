@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import torch
 from torch import nn
@@ -259,42 +260,54 @@ class MTANMiniUnet(nn.Module):
         )
 
         # supervision for the global net comes from the task heads
-        self.task_head = nn.Conv2d(256, 1, kernel_size=1)
+        # self.task_heads = nn.Conv2d(256, 1, kernel_size=1)
+        self.map_tasks_to_heads = nn.ModuleDict(map_tasks_to_heads)
+        self.num_tasks = num_tasks
 
     def forward(self, x):
         x1 = self.in_conv(x)
-        task_attn_out_enc = None
+        task_attn_outs_enc = None
         encoder = None
         decoder = None
-        task_attn_out_dec = None
+        task_attn_outs_dec = []
         encoder_features = [x1]
         for i in range(len(self.enc_layers)):
             if i == 0:
-                encoder, task_attn_out_enc = self.enc_layers[i](x1)
+                encoder, task_attn_outs_enc = self.enc_layers[i](x1)
             else:
-                encoder, task_attn_out_enc = self.enc_layers[i](
-                    encoder, task_attn_out_enc
+                encoder, task_attn_outs_enc = self.enc_layers[i](
+                    encoder, task_attn_outs_enc
                 )
             encoder_features.append(encoder)
-            log.debug(f"{encoder.shape=} {task_attn_out_enc.shape=}")
+            log.debug(f"{encoder.shape=} {task_attn_outs_enc.shape=}")
         for i in range(len(self.dec_layers)):
             if i == 0:
-                decoder, task_attn_out_dec = self.dec_layers[i](
-                    encoder_features[-1], encoder_features[-2], task_attn_out_enc
+                decoder, task_attn_outs_dec = self.dec_layers[i](
+                    encoder_features[-1], encoder_features[-2], task_attn_outs_enc
                 )
             else:
-                decoder, task_attn_out_dec = self.dec_layers[i](
-                    decoder, encoder_features[-(i + 2)], task_attn_out_dec
+                decoder, task_attn_outs_dec = self.dec_layers[i](
+                    decoder, encoder_features[-(i + 2)], task_attn_outs_dec
                 )
-            log.debug(f"{decoder.shape=} {task_attn_out_dec.shape=}")
+            log.debug(f"{decoder.shape=} {task_attn_outs_dec[0].shape=}")
 
         return {
-            "task_out": self.task_head(task_attn_out_dec),
+            task_name: head(task_attn_outs_dec[i])
+            for i, (task_name, head) in enumerate(self.map_tasks_to_heads.items())
         }
 
 
 if __name__ == "__main__":
+    num_tasks = 1
+    map_tasks_to_heads = {
+        f"task{i}": nn.Conv2d(
+            256,
+            1,
+            kernel_size=1,
+        )
+        for i in range(num_tasks)
+    }
     mtan_mini_unet = MTANMiniUnet(in_channels=3)
     x = torch.randn(1, 3, 256, 256)
     y = mtan_mini_unet(x)
-    log.debug(y["task_out"].shape)
+    print(y["task0"].shape)
