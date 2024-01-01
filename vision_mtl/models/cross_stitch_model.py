@@ -53,6 +53,22 @@ class CSNet(nn.Module):
         self.joint_layer_names_before_stitch = (
             get_joint_layer_names_before_stitch_for_unet(self.joint_layer_names)
         )
+        self.num_encoder_layers = len(
+            [
+                x
+                for x in get_module_by_name(
+                    random_model, "0.encoder.model.blocks"
+                ).named_children()
+            ]
+        )
+        self.num_decoder_layers = len(
+            [
+                x
+                for x in get_module_by_name(
+                    random_model, "0.decoder.blocks"
+                ).named_children()
+            ]
+        )
         if channels_wise_stitching:
             self.stitch_channels = self.get_stitch_channels(
                 random_model, self.joint_layer_names_before_stitch
@@ -71,22 +87,6 @@ class CSNet(nn.Module):
                 layer_name: CrossStitchLayer(num_tasks=self.num_tasks)
                 for layer_name in self.joint_layer_names_before_stitch
             }
-        self.num_encoder_layers = len(
-            [
-                x
-                for x in get_module_by_name(
-                    random_model, "0.encoder.model.blocks"
-                ).named_children()
-            ]
-        )
-        self.num_decoder_layers = len(
-            [
-                x
-                for x in get_module_by_name(
-                    random_model, "0.decoder.blocks"
-                ).named_children()
-            ]
-        )
 
     def parameters(self):
         params = []
@@ -220,6 +220,6 @@ if __name__ == "__main__":
         "task2": get_model_with_dense_preds(segm_classes=1, activation=None),
         "task3": get_model_with_dense_preds(segm_classes=1, activation=None),
     }
-    cs_model = CSNet(models)
+    cs_model = CSNet(models, channels_wise_stitching=True)
     y_tasks = cs_model(x)
     print([y.shape for y in y_tasks.values()])
