@@ -3,6 +3,8 @@ import logging
 import torch
 from torch import nn
 
+from vision_mtl.models.model_utils import DoubleConv, concat_slightly_diff_sized_tensors
+
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -14,20 +16,12 @@ class AttentionModuleEncoder(nn.Module):
         in_channels,
         out_channels=None,
         prev_layer_out_channels=None,
-        is_first=False,
     ):
         super().__init__()
 
         if out_channels is None:
             out_channels = in_channels
-        # if prev_layer_out_channels is None:
-        #     prev_layer_out_channels = in_channels
-
-        if is_first:
-            assert (
-                prev_layer_out_channels is None
-            ), "prev_layer_out_channels must be None for the first AttentionModuleEncoder"
-        self.is_first = is_first
+        self.is_first = prev_layer_out_channels is None
 
         # conv1 -> conv2 -> concat -> sigmoid -> conv3
         self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=1, padding=0)
@@ -104,9 +98,6 @@ class AttentionModuleDecoder(nn.Module):
         self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
 
     def forward(self, conv1_shared, prev_layer_out, conv2_shared):
-        # downsample prev_layer_out
-        # prev_layer_out = self.maxpool(prev_layer_out)
-
         prev_layer_out = self.conv3(prev_layer_out)
         prev_layer_out = self.bn3(prev_layer_out)
         prev_layer_out = self.relu2(prev_layer_out)
@@ -133,27 +124,6 @@ class AttentionModuleDecoder(nn.Module):
         conv2_shared = conv2_shared * conv1_attn
 
         return conv2_shared
-
-
-prev_attn_layer_out = torch.randn(1, 256, 128, 128)
-x_dec1 = torch.randn(1, 256, 128, 128)
-x_dec2 = torch.randn(1, 64, 128, 128)
-
-# fake inputs:
-# conv1_shared.shape = torch.Size([1, 256, 128, 128])
-# prev_layer_out.shape = torch.Size([1, 256, 128, 128])
-# conv2_shared.shape = torch.Size([1, 256, 128, 128])
-
-# real inputs:
-# conv1_shared.shape = torch.Size([1, 256, 128, 128])
-# prev_layer_out.shape = torch.Size([1, 128, 64, 64])
-# conv2_shared.shape = torch.Size([1, 64, 128, 128])
-
-dec = AttentionModuleDecoder(in_channels=256, out_channels=64)
-y = dec(conv1_shared=x_dec1, prev_layer_out=prev_attn_layer_out, conv2_shared=x_dec2)
-log.debug(y.shape)
-
-from vision_mtl.models.model_utils import DoubleConv, concat_slightly_diff_sized_tensors
 
 
 class MTANDown(nn.Module):
@@ -226,43 +196,48 @@ class MTANMiniUnet(nn.Module):
         # global and local subnets are not related. the only connection between them is that local subnet needs to know dimensionality of conv1 and conv2. it defines its own output dims!
         global_subnet_enc_channels = [128, 256 // factor, 256 // factor]
         global_subnet_dec_channels = [128 // factor, 256, 256]
+        prev_layer_out_channels_enc = [None] + global_subnet_enc_channels[:-1]
 
         task_subnet_channels_enc = [128, 128, 128]
         task_subnet_channels_dec = [128 // factor, 256, 256]
 
         task_attn_modules_enc = [
             AttentionModuleEncoder(
-                in_channels=self.in_hidden_channels, out_channels=task_subnet_channels_enc[0], is_first=True
+                in_channels=self.in_hidden_channels,
+                out_channels=task_subnet_channels_enc[0],
+                prev_layer_out_channels=prev_layer_out_channels_enc[0],
             ),
             AttentionModuleEncoder(
                 in_channels=task_subnet_channels_enc[0] + global_subnet_enc_channels[0],
                 out_channels=task_subnet_channels_enc[1],
-                prev_layer_out_channels=task_subnet_channels_enc[0],
+                prev_layer_out_channels=prev_layer_out_channels_enc[1],
             ),
             AttentionModuleEncoder(
                 in_channels=task_subnet_channels_enc[1] + global_subnet_enc_channels[1],
                 out_channels=task_subnet_channels_enc[2],
-                prev_layer_out_channels=task_subnet_channels_enc[1],
+                prev_layer_out_channels=prev_layer_out_channels_enc[2],
             ),
         ]
         task_attn_modules_dec = [
             AttentionModuleDecoder(
-                in_channels=global_subnet_enc_channels[0] + global_subnet_enc_channels[1],
+                in_channels=global_subnet_enc_channels[0]
+                + global_subnet_enc_channels[1],
                 out_channels=task_subnet_channels_dec[0],
                 prev_layer_out_channels=task_subnet_channels_enc[-1],
             ),
             AttentionModuleDecoder(
-                in_channels=global_subnet_enc_channels[1] + global_subnet_dec_channels[0],
+                in_channels=global_subnet_enc_channels[1]
+                + global_subnet_dec_channels[0],
                 out_channels=task_subnet_channels_dec[1],
                 prev_layer_out_channels=task_subnet_channels_dec[0],
             ),
             AttentionModuleDecoder(
-                in_channels=global_subnet_enc_channels[2] + global_subnet_dec_channels[1],
+                in_channels=global_subnet_enc_channels[2]
+                + global_subnet_dec_channels[1],
                 out_channels=task_subnet_channels_dec[2],
                 prev_layer_out_channels=task_subnet_channels_dec[1],
             ),
         ]
-
 
         self.encoder1 = MTANDown(
             self.in_hidden_channels,
@@ -275,7 +250,9 @@ class MTANMiniUnet(nn.Module):
             task_attn_module=task_attn_modules_enc[1],
         )
         self.encoder3 = MTANDown(
-            global_subnet_enc_channels[1], global_subnet_enc_channels[2], task_attn_module=task_attn_modules_enc[2]
+            global_subnet_enc_channels[1],
+            global_subnet_enc_channels[2],
+            task_attn_module=task_attn_modules_enc[2],
         )
 
         self.decoder1 = MTANUp(
