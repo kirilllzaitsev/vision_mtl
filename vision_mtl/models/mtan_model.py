@@ -12,35 +12,37 @@ log = logging.getLogger(__name__)
 class AttentionModuleEncoder(nn.Module):
     def __init__(
         self,
-        in_channels,
-        out_channels=None,
+        shared_1_channels,
+        out_channels,
+        shared_2_channels,
         prev_layer_out_channels=None,
+        hidden_channels=64,
     ):
         super().__init__()
 
-        if out_channels is None:
-            out_channels = in_channels
         self.is_first = prev_layer_out_channels is None
         self.prev_layer_out_channels = prev_layer_out_channels or 0
-        self.in_channels = in_channels
+        self.shared_1_channels = shared_1_channels
         self.out_channels = out_channels
+        self.shared_2_channels = shared_2_channels
+        self.hidden_channels = hidden_channels
 
         # conv1 -> conv2 -> concat -> sigmoid -> conv3
         self.conv1 = nn.Conv2d(
-            self.in_channels + self.prev_layer_out_channels,
-            self.in_channels,
+            self.shared_1_channels + self.prev_layer_out_channels,
+            hidden_channels,
             kernel_size=1,
             padding=0,
         )
-        self.bn1 = nn.BatchNorm2d(num_features=self.in_channels)
+        self.bn1 = nn.BatchNorm2d(num_features=hidden_channels)
         self.relu1 = nn.ReLU()
         self.conv2 = nn.Conv2d(
-            self.in_channels, self.out_channels, kernel_size=1, padding=0
+            hidden_channels, self.shared_2_channels, kernel_size=1, padding=0
         )
-        self.bn2 = nn.BatchNorm2d(num_features=self.out_channels)
+        self.bn2 = nn.BatchNorm2d(num_features=self.shared_2_channels)
         self.sigmoid = nn.Sigmoid()
         self.conv3 = nn.Conv2d(
-            self.out_channels, self.out_channels, kernel_size=3, padding=1
+            self.shared_2_channels, self.out_channels, kernel_size=3, padding=1
         )
         self.bn3 = nn.BatchNorm2d(num_features=self.out_channels)
         self.relu2 = nn.ReLU()
@@ -77,29 +79,51 @@ class AttentionModuleEncoder(nn.Module):
 
 
 class AttentionModuleDecoder(nn.Module):
-    def __init__(self, in_channels, out_channels=None, prev_layer_out_channels=None):
+    def __init__(
+        self,
+        shared_1_channels,
+        shared_2_channels,
+        prev_layer_out_channels,
+        out_channels,
+        hidden_channels=64,
+    ):
         super().__init__()
 
-        if out_channels is None:
-            out_channels = in_channels
-        if prev_layer_out_channels is None:
-            prev_layer_out_channels = in_channels
+        self.shared_1_channels = shared_1_channels
+        self.shared_2_channels = shared_2_channels
+        self.prev_layer_out_channels = prev_layer_out_channels
+        self.out_channels = out_channels
+        self.hidden_channels = hidden_channels
 
-        # in_channels * 2 since we are concatenating conv1_shared and prev_layer_outs put in advance to have the same in_channels dim of the conv1_shared
-        self.conv1 = nn.Conv2d(in_channels * 2, in_channels, kernel_size=1, padding=0)
-        self.bn1 = nn.BatchNorm2d(num_features=in_channels)
+        # in_channels * 2 since we are concatenating conv1_shared and prev_layer_outs put in advance
+        # to have the same in_channels dim of the conv1_shared
+        self.conv1 = nn.Conv2d(
+            shared_1_channels + hidden_channels,
+            hidden_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.bn1 = nn.BatchNorm2d(num_features=hidden_channels)
         self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
-        self.bn2 = nn.BatchNorm2d(num_features=out_channels)
+        self.conv2 = nn.Conv2d(
+            hidden_channels, shared_2_channels, kernel_size=1, padding=0
+        )
+        self.bn2 = nn.BatchNorm2d(num_features=shared_2_channels)
         self.sigmoid = nn.Sigmoid()
         # converts prev attn layer out to in_channels to make the prev attn out maergeable with conv1_shared
         self.conv3 = nn.Conv2d(
-            prev_layer_out_channels, in_channels, kernel_size=3, padding=1
+            prev_layer_out_channels, hidden_channels, kernel_size=3, padding=1
         )
-        self.bn3 = nn.BatchNorm2d(num_features=in_channels)
+        self.bn3 = nn.BatchNorm2d(num_features=hidden_channels)
         self.relu2 = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=2)
         self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+
+        self.conv_out = nn.Conv2d(
+            shared_2_channels, out_channels, kernel_size=3, padding=1
+        )
+        self.bn_out = nn.BatchNorm2d(num_features=out_channels)
+        self.relu_out = nn.ReLU()
 
     def forward(self, conv1_shared, prev_layer_outs, conv2_shared):
         prev_layer_outs = self.conv3(prev_layer_outs)
@@ -126,6 +150,11 @@ class AttentionModuleDecoder(nn.Module):
         conv1_attn = self.sigmoid(conv1)
 
         conv2_shared = conv2_shared * conv1_attn
+
+        # conv2_shared is at full scale. should apply extra conv to make the task decoder more lightweight
+        conv2_shared = self.conv_out(conv2_shared)
+        conv2_shared = self.bn_out(conv2_shared)
+        conv2_shared = self.relu_out(conv2_shared)
 
         return conv2_shared
 
@@ -248,20 +277,25 @@ class MTANMiniUnet(nn.Module):
             self.global_subnet_enc_out_channels[-1] * 2
         ] + self.global_subnet_dec_out_channels[:-1]
 
-        self.task_subnet_out_channels_enc = self.global_subnet_enc_out_channels
-        self.task_subnet_out_channels_dec = self.global_subnet_dec_out_channels
+        self.task_attn_out_channels_enc = [
+            x // 4 for x in self.global_subnet_enc_out_channels
+        ]
         self.task_attn_prev_layer_out_channels_enc = [
             None
-        ] + self.global_subnet_enc_out_channels[:-1]
+        ] + self.task_attn_out_channels_enc[:-1]
         self.task_attn_in_channels_enc = [
             self.in_channels
-        ] + self.task_subnet_out_channels_enc[:-1]
+        ] + self.global_subnet_enc_out_channels[:-1]
+
+        self.task_subnet_out_channels_dec = [
+            x // 4 for x in self.global_subnet_dec_out_channels
+        ]
         self.task_attn_in_channels_dec = [
             self.global_subnet_enc_out_channels[-1] * 2,
-        ] + self.task_subnet_out_channels_dec[:-1]
+        ] + self.global_subnet_dec_out_channels[:-1]
 
         self.task_attn_prev_layer_out_channels_dec = [
-            self.task_subnet_out_channels_enc[-1]
+            self.task_attn_out_channels_enc[-1]
         ] + self.task_subnet_out_channels_dec[:-1]
 
         task_attn_modules_enc = nn.ModuleList(
@@ -269,8 +303,9 @@ class MTANMiniUnet(nn.Module):
                 nn.ModuleList(
                     [
                         AttentionModuleEncoder(
-                            in_channels=self.task_attn_in_channels_enc[i],
-                            out_channels=self.task_subnet_out_channels_enc[i],
+                            shared_1_channels=self.task_attn_in_channels_enc[i],
+                            shared_2_channels=self.global_subnet_enc_out_channels[i],
+                            out_channels=self.task_attn_out_channels_enc[i],
                             prev_layer_out_channels=self.task_attn_prev_layer_out_channels_enc[
                                 i
                             ],
@@ -286,11 +321,12 @@ class MTANMiniUnet(nn.Module):
                 nn.ModuleList(
                     [
                         AttentionModuleDecoder(
-                            in_channels=self.task_attn_in_channels_dec[i],
-                            out_channels=self.task_subnet_out_channels_dec[i],
+                            shared_1_channels=self.task_attn_in_channels_dec[i],
+                            shared_2_channels=self.global_subnet_dec_out_channels[i],
                             prev_layer_out_channels=self.task_attn_prev_layer_out_channels_dec[
                                 i
                             ],
+                            out_channels=self.task_subnet_out_channels_dec[i],
                         )
                         for _ in range(self.num_tasks)
                     ]
