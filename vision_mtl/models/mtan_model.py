@@ -209,26 +209,24 @@ class MTANMiniUnet(nn.Module):
         self.num_tasks = len(map_tasks_to_heads)
         self.in_hidden_channels = in_hidden_channels
         self.in_channels = in_channels
-        # self.in_conv = DoubleConv(in_channels, self.in_hidden_channels)
 
-        # self.factor = 2 if bilinear else 1
         self.factor = 1
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
         self.global_subnet_enc_out_channels = [self.in_hidden_channels, 128, 256, 512 // self.factor]
-        self.global_subnet_enc_out_channels = [
-            x // 4 for x in self.global_subnet_enc_out_channels
-        ]
+        # self.global_subnet_enc_out_channels = [
+        #     x // 4 for x in self.global_subnet_enc_out_channels
+        # ]
         self.global_subnet_enc_in_channels = [
             self.in_channels
         ] + self.global_subnet_enc_out_channels[:-1]
 
         # dec_0 is at the bottleneck of the global subnet
         self.global_subnet_dec_out_channels = [512, 256, 128, 64]
-        self.global_subnet_dec_out_channels = [
-            x // 4 // self.factor for x in self.global_subnet_dec_out_channels
-        ]
+        # self.global_subnet_dec_out_channels = [
+        #     x // 4 // self.factor for x in self.global_subnet_dec_out_channels
+        # ]
 
         self.bottleneck = DoubleConv(
             in_channels=self.global_subnet_enc_out_channels[-1],
