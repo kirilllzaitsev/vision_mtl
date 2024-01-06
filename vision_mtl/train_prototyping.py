@@ -240,8 +240,42 @@ def train_model(
 
 # Model initialization
 
-model = BasicMTLModel(decoder_first_channel=512, num_decoder_layers=5)
-
+if args.model_name == "basic":
+    # basic
+    model = BasicMTLModel(decoder_first_channel=512, num_decoder_layers=5)
+elif args.model_name == "mtan":
+    # MTAN
+    map_tasks_to_num_channels = {
+        "depth": 1,
+        "segm": cfg.data.num_classes,
+    }
+    model = MTANMiniUnet(
+        in_channels=3,
+        map_tasks_to_num_channels=map_tasks_to_num_channels,
+        task_subnets_hidden_channels=128,
+    )
+elif args.model_name == "csnet":
+    # cross-stitch
+    num_classes = 10
+    backbone_params = dict(
+        encoder_name="timm-mobilenetv3_large_100",
+        encoder_weights="imagenet",
+        decoder_first_channel=256,
+        num_decoder_layers=5,
+    )
+    models = {
+        "depth": get_model_with_dense_preds(
+            segm_classes=1, activation=None, backbone_params=backbone_params
+        ),
+        "segm": get_model_with_dense_preds(
+            segm_classes=cfg.data.num_classes,
+            activation=None,
+            backbone_params=backbone_params,
+        ),
+    }
+    model = CSNet(models, channels_wise_stitching=True)
+else:
+    raise NotImplementedError(f"Unknown model name: {args.model_name}")
 
 # Datamodule
 datamodule = PhotopicVisionDataModule(
