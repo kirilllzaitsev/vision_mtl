@@ -113,6 +113,14 @@ class CSNet(nn.Module):
             self.cross_stitch_layers[layer_name].cuda()
         return self
 
+    def to(self, device):
+        if isinstance(device, str):
+            device = torch.device(device)
+        if device.type == "cuda":
+            self.cuda()
+        else:
+            super().to(device)
+
     def forward(self, x):
         model_features = {task_name: x.clone() for task_name in self.model_names}
         layers_applied = []
