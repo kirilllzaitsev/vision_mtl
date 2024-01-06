@@ -134,7 +134,11 @@ class MTANDown(nn.Module):
     """Downscaling with maxpool then double conv"""
 
     def __init__(
-        self, in_channels, out_channels, task_attn_modules: list[AttentionModuleEncoder], apply_pool=True
+        self,
+        in_channels,
+        out_channels,
+        task_attn_modules: list[AttentionModuleEncoder],
+        apply_pool=True,
     ):
         super().__init__()
         self.dconv = DoubleConv(in_channels, out_channels)
@@ -202,19 +206,26 @@ class MTANUp(nn.Module):
 
 class MTANMiniUnet(nn.Module):
     def __init__(
-        self, in_channels, map_tasks_to_heads, in_hidden_channels=128, bilinear=True
+        self,
+        in_channels,
+        map_tasks_to_num_channels,
+        in_hidden_channels=128,
+        bilinear=True,
     ):
         super().__init__()
 
-        self.num_tasks = len(map_tasks_to_heads)
+        self.num_tasks = len(map_tasks_to_num_channels)
         self.in_hidden_channels = in_hidden_channels
         self.in_channels = in_channels
 
-        self.factor = 1
-
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
-        self.global_subnet_enc_out_channels = [self.in_hidden_channels, 128, 256, 512 // self.factor]
+        self.global_subnet_enc_out_channels = [
+            self.in_hidden_channels,
+            128,
+            256,
+            512,
+        ]
         # self.global_subnet_enc_out_channels = [
         #     x // 4 for x in self.global_subnet_enc_out_channels
         # ]
@@ -225,7 +236,7 @@ class MTANMiniUnet(nn.Module):
         # dec_0 is at the bottleneck of the global subnet
         self.global_subnet_dec_out_channels = [512, 256, 128, 64]
         # self.global_subnet_dec_out_channels = [
-        #     x // 4 // self.factor for x in self.global_subnet_dec_out_channels
+        #     x // 4 for x in self.global_subnet_dec_out_channels
         # ]
 
         self.bottleneck = DoubleConv(
@@ -294,7 +305,7 @@ class MTANMiniUnet(nn.Module):
                     in_channels=self.global_subnet_enc_in_channels[i],
                     out_channels=self.global_subnet_enc_out_channels[i],
                     task_attn_modules=task_attn_modules_enc[i],
-                    apply_pool=False
+                    apply_pool=False,
                 )
                 for i in range(len(self.global_subnet_enc_in_channels))
             ]
@@ -315,7 +326,16 @@ class MTANMiniUnet(nn.Module):
         self.pool = nn.MaxPool2d(2)
 
         # supervision for the global net comes from the task heads
-        self.map_tasks_to_heads = nn.ModuleDict(map_tasks_to_heads)
+        self.map_tasks_to_heads = nn.ModuleDict(
+            {
+                task_name: nn.Conv2d(
+                    self.task_subnet_out_channels_dec[-1],
+                    out_channels,
+                    kernel_size=1,
+                )
+                for task_name, out_channels in map_tasks_to_num_channels.items()
+            }
+        )
 
     def forward(self, x):
         task_attn_outs_enc = None
@@ -356,7 +376,9 @@ if __name__ == "__main__":
         )
         for i in range(num_tasks)
     }
-    mtan_mini_unet = MTANMiniUnet(in_channels=3, map_tasks_to_heads=map_tasks_to_heads)
+    mtan_mini_unet = MTANMiniUnet(
+        in_channels=3, map_tasks_to_num_channels=map_tasks_to_heads
+    )
     x = torch.randn(1, 3, 256, 256)
     y = mtan_mini_unet(x)
     print(y["task0"].shape)
