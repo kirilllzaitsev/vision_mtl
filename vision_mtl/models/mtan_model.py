@@ -177,6 +177,9 @@ class MTANUp(nn.Module):
             )
             self.conv = DoubleConv(in_channels, out_channels)
         self.task_attn_modules = task_attn_modules
+        self.out_channels = out_channels
+        self.in_channels = in_channels
+        self.bilinear = bilinear
 
     def forward(self, x1, x2, task_attn_prev_outs):
         x1 = self.up(x1)
@@ -207,27 +210,32 @@ class MTANMiniUnet(nn.Module):
         self.in_hidden_channels = in_hidden_channels
         self.in_conv = DoubleConv(in_channels, self.in_hidden_channels)
 
-        factor = 2 if bilinear else 1
+        # factor = 2 if bilinear else 1
+        factor = 1
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
-        self.global_subnet_enc_out_channels = [128, 256 // factor, 512 // factor]
+        self.global_subnet_enc_out_channels = [128, 256, 512]
+        self.global_subnet_enc_out_channels = [
+            x // 4 for x in self.global_subnet_enc_out_channels
+        ]
         self.global_subnet_enc_in_channels = [
-            self.in_hidden_channels,
-            self.global_subnet_enc_out_channels[0],
-            self.global_subnet_enc_out_channels[1],
+            self.in_hidden_channels
+        ] + self.global_subnet_enc_out_channels[:-1]
+        # dec_0 is at the bottleneck of the global subnet
+        self.global_subnet_dec_out_channels = [512, 256, 128, 64]
+        self.global_subnet_dec_out_channels = [
+            x // 4 for x in self.global_subnet_dec_out_channels
         ]
-        self.global_subnet_dec_out_channels = [128 // factor, 256, 256]
+
+        self.bottleneck = DoubleConv(
+            in_channels=self.global_subnet_enc_out_channels[-1],
+            out_channels=self.global_subnet_enc_out_channels[-1] * 2,
+        )
+
         self.global_subnet_dec_in_channels = [
-            # self.global_subnet_enc_out_channels[1]
-            # + self.global_subnet_enc_out_channels[2],
-            # self.global_subnet_enc_out_channels[0]
-            # + self.global_subnet_dec_out_channels[0],
-            # self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
-            self.global_subnet_enc_out_channels[2],
-            self.global_subnet_dec_out_channels[0],
-            self.global_subnet_dec_out_channels[1],
-        ]
+            self.global_subnet_enc_out_channels[-1] * 2
+        ] + self.global_subnet_dec_out_channels[:-1]
 
         self.task_subnet_out_channels_enc = self.global_subnet_enc_out_channels
         self.task_subnet_out_channels_dec = self.global_subnet_dec_out_channels
@@ -240,15 +248,9 @@ class MTANMiniUnet(nn.Module):
             self.task_subnet_out_channels_enc[1],
         ]
         self.task_attn_in_channels_dec = [
-            # self.global_subnet_enc_out_channels[0]
-            # + self.global_subnet_enc_out_channels[1],
-            # self.global_subnet_enc_out_channels[2]
-            # + self.global_subnet_dec_out_channels[0],
-            # self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
-            self.task_subnet_out_channels_enc[-1],
-            self.task_subnet_out_channels_dec[0],
-            self.task_subnet_out_channels_dec[1],
-        ]
+            self.global_subnet_enc_out_channels[-1]
+            * 2,
+        ] + self.task_subnet_out_channels_dec[:-1]
 
         self.task_attn_prev_layer_out_channels_dec = [
             self.task_subnet_out_channels_enc[-1]
@@ -318,30 +320,29 @@ class MTANMiniUnet(nn.Module):
     def forward(self, x):
         x1 = self.in_conv(x)
         task_attn_outs_enc = None
-        encoder = None
-        decoder = None
-        task_attn_outs_dec = []
-        encoder_features = [x1]
+        encoder = x1
+        encoder_features = []
         for i in range(len(self.enc_layers)):
-            if i == 0:
-                encoder, task_attn_outs_enc = self.enc_layers[i](x1)
-            else:
-                encoder, task_attn_outs_enc = self.enc_layers[i](
-                    encoder, task_attn_outs_enc
-                )
+            encoder, task_attn_outs_enc = self.enc_layers[i](
+                encoder, task_attn_outs_enc
+            )
             encoder_features.append(encoder)
             log.debug(f"{encoder.shape=} {task_attn_outs_enc[0].shape=}")
-        for i in range(len(self.dec_layers)):
-            if i == 0:
-                decoder, task_attn_outs_dec = self.dec_layers[i](
-                    encoder_features[-1], encoder_features[-2], task_attn_outs_enc
-                )
-            else:
-                # encoder features at idxs -1 and -2 are considered for the first decoder layer with idx 0
-                decoder, task_attn_outs_dec = self.dec_layers[i](
-                    decoder, encoder_features[-(i + 2)], task_attn_outs_dec
-                )
+
+        bottleneck = self.bottleneck(encoder)
+        decoder = bottleneck
+        task_attn_outs_dec = task_attn_outs_enc
+
+        for i in range(len(self.dec_layers) - 1):
+            # encoder features at idxs -1 and -2 are considered for the first decoder layer with idx 0
+            decoder, task_attn_outs_dec = self.dec_layers[i](
+                decoder, encoder_features[-(i + 1)], task_attn_outs_dec
+            )
             log.debug(f"{decoder.shape=} {task_attn_outs_dec[0].shape=}")
+
+        decoder, task_attn_outs_dec = self.dec_layers[-1](
+            decoder, x1, task_attn_outs_dec
+        )
 
         return {
             task_name: head(task_attn_outs_dec[i])
