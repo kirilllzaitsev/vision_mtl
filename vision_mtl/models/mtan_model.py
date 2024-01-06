@@ -231,7 +231,7 @@ class MTANMiniUnet(nn.Module):
         self,
         in_channels,
         map_tasks_to_num_channels,
-        bilinear=True,
+        task_subnets_hidden_channels=128,
     ):
         super().__init__()
 
@@ -247,7 +247,7 @@ class MTANMiniUnet(nn.Module):
             512,
         ]
         self.global_subnet_enc_out_channels = [
-            x // 4 for x in self.global_subnet_enc_out_channels
+            x // 2 for x in self.global_subnet_enc_out_channels
         ]
         self.global_subnet_enc_in_channels = [
             self.in_channels
@@ -256,7 +256,7 @@ class MTANMiniUnet(nn.Module):
         # dec_0 is at the bottleneck of the global subnet
         self.global_subnet_dec_out_channels = [512, 256, 128, 64]
         self.global_subnet_dec_out_channels = [
-            x // 4 for x in self.global_subnet_dec_out_channels
+            x // 2 for x in self.global_subnet_dec_out_channels
         ]
 
         self.bottleneck = DoubleConv(
@@ -269,7 +269,7 @@ class MTANMiniUnet(nn.Module):
         ] + self.global_subnet_dec_out_channels[:-1]
 
         self.task_attn_out_channels_enc = [
-            x // 4 for x in self.global_subnet_enc_out_channels
+            x // 2 for x in self.global_subnet_enc_out_channels
         ]
         self.task_attn_prev_layer_out_channels_enc = [
             None
@@ -279,7 +279,7 @@ class MTANMiniUnet(nn.Module):
         ] + self.global_subnet_enc_out_channels[:-1]
 
         self.task_subnet_out_channels_dec = [
-            x // 4 for x in self.global_subnet_dec_out_channels
+            x // 2 for x in self.global_subnet_dec_out_channels
         ]
         self.task_attn_in_channels_dec = [
             self.global_subnet_enc_out_channels[-1] * 2,
@@ -300,6 +300,7 @@ class MTANMiniUnet(nn.Module):
                             prev_layer_out_channels=self.task_attn_prev_layer_out_channels_enc[
                                 i
                             ],
+                            hidden_channels=task_subnets_hidden_channels,
                         )
                         for _ in range(self.num_tasks)
                     ]
@@ -318,6 +319,7 @@ class MTANMiniUnet(nn.Module):
                                 i
                             ],
                             out_channels=self.task_subnet_out_channels_dec[i],
+                            hidden_channels=task_subnets_hidden_channels,
                         )
                         for _ in range(self.num_tasks)
                     ]
