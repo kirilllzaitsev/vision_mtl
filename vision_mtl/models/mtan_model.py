@@ -21,16 +21,28 @@ class AttentionModuleEncoder(nn.Module):
         if out_channels is None:
             out_channels = in_channels
         self.is_first = prev_layer_out_channels is None
+        self.prev_layer_out_channels = prev_layer_out_channels or 0
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
         # conv1 -> conv2 -> concat -> sigmoid -> conv3
-        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=1, padding=0)
-        self.bn1 = nn.BatchNorm2d(num_features=in_channels)
+        self.conv1 = nn.Conv2d(
+            self.in_channels + self.prev_layer_out_channels,
+            self.in_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.bn1 = nn.BatchNorm2d(num_features=self.in_channels)
         self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
-        self.bn2 = nn.BatchNorm2d(num_features=out_channels)
+        self.conv2 = nn.Conv2d(
+            self.in_channels, self.out_channels, kernel_size=1, padding=0
+        )
+        self.bn2 = nn.BatchNorm2d(num_features=self.out_channels)
         self.sigmoid = nn.Sigmoid()
-        self.conv3 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(num_features=out_channels)
+        self.conv3 = nn.Conv2d(
+            self.out_channels, self.out_channels, kernel_size=3, padding=1
+        )
+        self.bn3 = nn.BatchNorm2d(num_features=self.out_channels)
         self.relu2 = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=2)
 
@@ -199,39 +211,43 @@ class MTANMiniUnet(nn.Module):
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
-        self.global_subnet_enc_out_channels = [128, 256 // factor, 256 // factor]
-        self.global_subnet_dec_out_channels = [128 // factor, 256, 256]
+        self.global_subnet_enc_out_channels = [128, 256 // factor, 512 // factor]
         self.global_subnet_enc_in_channels = [
             self.in_hidden_channels,
             self.global_subnet_enc_out_channels[0],
             self.global_subnet_enc_out_channels[1],
         ]
+        self.global_subnet_dec_out_channels = [128 // factor, 256, 256]
         self.global_subnet_dec_in_channels = [
-            self.global_subnet_enc_out_channels[1]
-            + self.global_subnet_enc_out_channels[2],
-            self.global_subnet_enc_out_channels[0]
-            + self.global_subnet_dec_out_channels[0],
-            self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
+            # self.global_subnet_enc_out_channels[1]
+            # + self.global_subnet_enc_out_channels[2],
+            # self.global_subnet_enc_out_channels[0]
+            # + self.global_subnet_dec_out_channels[0],
+            # self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
+            self.global_subnet_enc_out_channels[2],
+            self.global_subnet_dec_out_channels[0],
+            self.global_subnet_dec_out_channels[1],
         ]
 
-        self.task_subnet_out_channels_enc = [128, 128, 128]
-        self.task_subnet_out_channels_dec = [128 // factor, 256, 256]
+        self.task_subnet_out_channels_enc = self.global_subnet_enc_out_channels
+        self.task_subnet_out_channels_dec = self.global_subnet_dec_out_channels
         self.task_attn_prev_layer_out_channels_enc = [
             None
         ] + self.global_subnet_enc_out_channels[:-1]
         self.task_attn_in_channels_enc = [
             self.in_hidden_channels,
-            self.task_subnet_out_channels_enc[0]
-            + self.global_subnet_enc_out_channels[0],
-            self.task_subnet_out_channels_enc[1]
-            + self.global_subnet_enc_out_channels[1],
+            self.task_subnet_out_channels_enc[0],
+            self.task_subnet_out_channels_enc[1],
         ]
         self.task_attn_in_channels_dec = [
-            self.global_subnet_enc_out_channels[0]
-            + self.global_subnet_enc_out_channels[1],
-            self.global_subnet_enc_out_channels[2]
-            + self.global_subnet_dec_out_channels[0],
-            self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
+            # self.global_subnet_enc_out_channels[0]
+            # + self.global_subnet_enc_out_channels[1],
+            # self.global_subnet_enc_out_channels[2]
+            # + self.global_subnet_dec_out_channels[0],
+            # self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
+            self.task_subnet_out_channels_enc[-1],
+            self.task_subnet_out_channels_dec[0],
+            self.task_subnet_out_channels_dec[1],
         ]
 
         self.task_attn_prev_layer_out_channels_dec = [
