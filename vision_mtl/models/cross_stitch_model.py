@@ -19,11 +19,14 @@ class CrossStitchLayer(nn.Module):
         self.num_tasks = num_tasks
         self.channels_wise_stitching = num_channels is not None
         if self.channels_wise_stitching:
-            self.weights = nn.Parameter(
-                torch.Tensor(num_tasks, num_tasks, num_channels)
-            )
+            self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks, num_channels))
         else:
             self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.weights)
 
     def forward(self, mt_activations):
         if self.channels_wise_stitching:
