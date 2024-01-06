@@ -197,22 +197,15 @@ class MTANUp(nn.Module):
         in_channels,
         out_channels,
         task_attn_modules: list[AttentionModuleDecoder],
-        bilinear=True,
     ):
         super().__init__()
-        # if bilinear, use the normal convolutions to reduce the number of channels
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
-        else:
-            self.up = nn.ConvTranspose2d(
-                in_channels, in_channels // 2, kernel_size=2, stride=2
-            )
-            self.conv = DoubleConv(in_channels, out_channels)
+        self.up = nn.ConvTranspose2d(
+            in_channels, in_channels // 2, kernel_size=2, stride=2
+        )
+        self.conv = DoubleConv(in_channels, out_channels)
         self.task_attn_modules = task_attn_modules
         self.out_channels = out_channels
         self.in_channels = in_channels
-        self.bilinear = bilinear
 
     def forward(self, x1, x2, task_attn_prev_outs):
         x1 = self.up(x1)
@@ -238,35 +231,33 @@ class MTANMiniUnet(nn.Module):
         self,
         in_channels,
         map_tasks_to_num_channels,
-        in_hidden_channels=128,
         bilinear=True,
     ):
         super().__init__()
 
         self.num_tasks = len(map_tasks_to_num_channels)
-        self.in_hidden_channels = in_hidden_channels
         self.in_channels = in_channels
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
         self.global_subnet_enc_out_channels = [
-            self.in_hidden_channels,
+            64,
             128,
             256,
             512,
         ]
-        # self.global_subnet_enc_out_channels = [
-        #     x // 4 for x in self.global_subnet_enc_out_channels
-        # ]
+        self.global_subnet_enc_out_channels = [
+            x // 4 for x in self.global_subnet_enc_out_channels
+        ]
         self.global_subnet_enc_in_channels = [
             self.in_channels
         ] + self.global_subnet_enc_out_channels[:-1]
 
         # dec_0 is at the bottleneck of the global subnet
         self.global_subnet_dec_out_channels = [512, 256, 128, 64]
-        # self.global_subnet_dec_out_channels = [
-        #     x // 4 for x in self.global_subnet_dec_out_channels
-        # ]
+        self.global_subnet_dec_out_channels = [
+            x // 4 for x in self.global_subnet_dec_out_channels
+        ]
 
         self.bottleneck = DoubleConv(
             in_channels=self.global_subnet_enc_out_channels[-1],
@@ -352,7 +343,6 @@ class MTANMiniUnet(nn.Module):
                 MTANUp(
                     in_channels=self.global_subnet_dec_in_channels[i],
                     out_channels=self.global_subnet_dec_out_channels[i],
-                    bilinear=bilinear,
                     task_attn_modules=task_attn_modules_dec[i],
                 )
                 for i in range(len(self.global_subnet_dec_in_channels))
