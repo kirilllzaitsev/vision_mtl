@@ -140,7 +140,7 @@ class MTANDown(nn.Module):
                     prev_layer_outs=prev_layer_outs[i] if prev_layer_outs else None,
                 )
             )
-        pool_out = self.pool(x)
+        pool_out = self.pool(dconv_out)
         return pool_out, task_attn_outs
 
 
@@ -199,54 +199,60 @@ class MTANMiniUnet(nn.Module):
 
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
-        global_subnet_enc_out_channels = [128, 256 // factor, 256 // factor]
-        global_subnet_dec_out_channels = [128 // factor, 256, 256]
-        global_subnet_enc_in_channels = [
+        self.global_subnet_enc_out_channels = [128, 256 // factor, 256 // factor]
+        self.global_subnet_dec_out_channels = [128 // factor, 256, 256]
+        self.global_subnet_enc_in_channels = [
             self.in_hidden_channels,
-            global_subnet_enc_out_channels[0],
-            global_subnet_enc_out_channels[1],
+            self.global_subnet_enc_out_channels[0],
+            self.global_subnet_enc_out_channels[1],
         ]
-        global_subnet_dec_in_channels = [
-            global_subnet_enc_out_channels[1] + global_subnet_enc_out_channels[2],
-            global_subnet_enc_out_channels[0] + global_subnet_dec_out_channels[0],
-            self.in_hidden_channels + global_subnet_dec_out_channels[1],
+        self.global_subnet_dec_in_channels = [
+            self.global_subnet_enc_out_channels[1]
+            + self.global_subnet_enc_out_channels[2],
+            self.global_subnet_enc_out_channels[0]
+            + self.global_subnet_dec_out_channels[0],
+            self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
         ]
 
-        task_subnet_out_channels_enc = [128, 128, 128]
-        task_subnet_out_channels_dec = [128 // factor, 256, 256]
-        task_attn_prev_layer_out_channels_enc = [None] + global_subnet_enc_out_channels[
-            :-1
-        ]
-        task_attn_in_channels_enc = [
+        self.task_subnet_out_channels_enc = [128, 128, 128]
+        self.task_subnet_out_channels_dec = [128 // factor, 256, 256]
+        self.task_attn_prev_layer_out_channels_enc = [
+            None
+        ] + self.global_subnet_enc_out_channels[:-1]
+        self.task_attn_in_channels_enc = [
             self.in_hidden_channels,
-            task_subnet_out_channels_enc[0] + global_subnet_enc_out_channels[0],
-            task_subnet_out_channels_enc[1] + global_subnet_enc_out_channels[1],
+            self.task_subnet_out_channels_enc[0]
+            + self.global_subnet_enc_out_channels[0],
+            self.task_subnet_out_channels_enc[1]
+            + self.global_subnet_enc_out_channels[1],
         ]
-        task_attn_in_channels_dec = [
-            global_subnet_enc_out_channels[0] + global_subnet_enc_out_channels[1],
-            global_subnet_enc_out_channels[1] + global_subnet_dec_out_channels[0],
-            global_subnet_enc_out_channels[2] + global_subnet_dec_out_channels[1],
+        self.task_attn_in_channels_dec = [
+            self.global_subnet_enc_out_channels[0]
+            + self.global_subnet_enc_out_channels[1],
+            self.global_subnet_enc_out_channels[2]
+            + self.global_subnet_dec_out_channels[0],
+            self.in_hidden_channels + self.global_subnet_dec_out_channels[1],
         ]
 
-        task_attn_prev_layer_out_channels_dec = [
-            task_subnet_out_channels_enc[-1]
-        ] + task_subnet_out_channels_dec[:-1]
+        self.task_attn_prev_layer_out_channels_dec = [
+            self.task_subnet_out_channels_enc[-1]
+        ] + self.task_subnet_out_channels_dec[:-1]
 
         task_attn_modules_enc = nn.ModuleList(
             [
                 nn.ModuleList(
                     [
                         AttentionModuleEncoder(
-                            in_channels=task_attn_in_channels_enc[i],
-                            out_channels=task_subnet_out_channels_enc[i],
-                            prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[
+                            in_channels=self.task_attn_in_channels_enc[i],
+                            out_channels=self.task_subnet_out_channels_enc[i],
+                            prev_layer_out_channels=self.task_attn_prev_layer_out_channels_enc[
                                 i
                             ],
                         )
                         for _ in range(self.num_tasks)
                     ]
                 )
-                for i in range(len(task_attn_in_channels_enc))
+                for i in range(len(self.task_attn_in_channels_enc))
             ]
         )
         task_attn_modules_dec = nn.ModuleList(
@@ -254,39 +260,39 @@ class MTANMiniUnet(nn.Module):
                 nn.ModuleList(
                     [
                         AttentionModuleDecoder(
-                            in_channels=task_attn_in_channels_dec[i],
-                            out_channels=task_subnet_out_channels_dec[i],
-                            prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[
+                            in_channels=self.task_attn_in_channels_dec[i],
+                            out_channels=self.task_subnet_out_channels_dec[i],
+                            prev_layer_out_channels=self.task_attn_prev_layer_out_channels_dec[
                                 i
                             ],
                         )
                         for _ in range(self.num_tasks)
                     ]
                 )
-                for i in range(len(task_attn_in_channels_dec))
+                for i in range(len(self.task_attn_in_channels_dec))
             ]
         )
 
         self.enc_layers = nn.ModuleList(
             [
                 MTANDown(
-                    in_channels=global_subnet_enc_in_channels[i],
-                    out_channels=global_subnet_enc_out_channels[i],
+                    in_channels=self.global_subnet_enc_in_channels[i],
+                    out_channels=self.global_subnet_enc_out_channels[i],
                     task_attn_modules=task_attn_modules_enc[i],
                 )
-                for i in range(len(global_subnet_enc_in_channels))
+                for i in range(len(self.global_subnet_enc_in_channels))
             ]
         )
 
         self.dec_layers = nn.ModuleList(
             [
                 MTANUp(
-                    in_channels=global_subnet_dec_in_channels[i],
-                    out_channels=global_subnet_dec_out_channels[i],
+                    in_channels=self.global_subnet_dec_in_channels[i],
+                    out_channels=self.global_subnet_dec_out_channels[i],
                     bilinear=bilinear,
                     task_attn_modules=task_attn_modules_dec[i],
                 )
-                for i in range(len(global_subnet_dec_in_channels))
+                for i in range(len(self.global_subnet_dec_in_channels))
             ]
         )
 
@@ -315,6 +321,7 @@ class MTANMiniUnet(nn.Module):
                     encoder_features[-1], encoder_features[-2], task_attn_outs_enc
                 )
             else:
+                # encoder features at idxs -1 and -2 are considered for the first decoder layer with idx 0
                 decoder, task_attn_outs_dec = self.dec_layers[i](
                     decoder, encoder_features[-(i + 2)], task_attn_outs_dec
                 )
