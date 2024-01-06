@@ -72,6 +72,12 @@ class CSNet(nn.Module):
                 ).named_children()
             ]
         )
+        self.valid_cross_stitch_layer_names = [
+            layer_name.replace('.', '_') for layer_name in self.joint_layer_names_before_stitch
+        ]
+        self.true_cross_stitch_layer_names = [
+            layer_name for layer_name in self.joint_layer_names_before_stitch
+        ]
         if channels_wise_stitching:
             self.stitch_channels = self.get_stitch_channels(
                 random_model, self.joint_layer_names_before_stitch
@@ -82,27 +88,28 @@ class CSNet(nn.Module):
                     num_channels=self.stitch_channels[layer_idx],
                 )
                 for layer_idx, layer_name in enumerate(
-                    self.joint_layer_names_before_stitch
+                    self.valid_cross_stitch_layer_names
                 )
             }
         else:
             self.cross_stitch_layers = {
                 layer_name: CrossStitchLayer(num_tasks=self.num_tasks)
-                for layer_name in self.joint_layer_names_before_stitch
+                for layer_name in self.valid_cross_stitch_layer_names
             }
+        self.cross_stitch_layers = nn.ModuleDict(self.cross_stitch_layers)
 
     def parameters(self):
         params = []
         for task_name in self.model_names:
             params.extend(self.models[task_name].parameters())
-        for layer_name in self.joint_layer_names_before_stitch:
+        for layer_name in self.cross_stitch_layers.keys():
             params.extend(self.cross_stitch_layers[layer_name].parameters())
         return params
 
     def cuda(self):
         for task_name in self.model_names:
             self.models[task_name].cuda()
-        for layer_name in self.joint_layer_names_before_stitch:
+        for layer_name in self.cross_stitch_layers.keys():
             self.cross_stitch_layers[layer_name].cuda()
         return self
 
@@ -147,7 +154,8 @@ class CSNet(nn.Module):
                 layers_applied.append(layer_name)
             if layer_name in self.joint_layer_names_before_stitch:
                 # continue
-                cross_stitch = self.cross_stitch_layers[layer_name]
+                valid_layer_name = layer_name.replace('.', '_')
+                cross_stitch = self.cross_stitch_layers[valid_layer_name]
                 model_features = cross_stitch(
                     torch.stack(
                         [model_features[task_name] for task_name in self.model_names],
