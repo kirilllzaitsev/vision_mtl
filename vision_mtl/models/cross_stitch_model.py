@@ -200,8 +200,9 @@ class CSNet(nn.Module):
         return stitch_channels
 
 
-def get_model_with_dense_preds(segm_classes=10, activation=None):
-    backbone = Backbone(in_channels=3)
+def get_model_with_dense_preds(segm_classes=10, activation=None, backbone_params=None):
+    backbone_params = backbone_params or {}
+    backbone = Backbone(in_channels=3, **backbone_params)
     head = SegmentationHead(
         in_channels=backbone.decoder_channels[-1],
         out_channels=segm_classes,
