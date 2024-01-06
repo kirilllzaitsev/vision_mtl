@@ -43,10 +43,10 @@ class Backbone(nn.Module):
 class BasicMTLModel(nn.Module):
     def __init__(
         self,
-        encoder_name="timm-mobilenetv3_large_100",
-        encoder_weights="imagenet",
         activation=None,
         segm_classes=19,
+        encoder_name="timm-mobilenetv3_large_100",
+        encoder_weights="imagenet",
         decoder_first_channel=256,
         num_decoder_layers=5,
         in_channels=3,

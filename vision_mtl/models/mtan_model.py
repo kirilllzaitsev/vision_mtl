@@ -186,16 +186,19 @@ class MTANUp(nn.Module):
 
 
 class MTANMiniUnet(nn.Module):
-    def __init__(self, in_channels, map_tasks_to_heads, bilinear=True):
+    def __init__(
+        self, in_channels, map_tasks_to_heads, in_hidden_channels=128, bilinear=True
+    ):
         super().__init__()
 
         self.num_tasks = len(map_tasks_to_heads)
-        self.in_hidden_channels = 128
+        self.in_hidden_channels = in_hidden_channels
         self.in_conv = DoubleConv(in_channels, self.in_hidden_channels)
 
         factor = 2 if bilinear else 1
 
-        # global and local subnets are not related. the only connection between them is that local subnet needs to know dimensionality of conv1 and conv2. it defines its own output dims!
+        # global and local subnets are not related. the only connection between them is that local subnet needs to
+        # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
         global_subnet_enc_out_channels = [128, 256 // factor, 256 // factor]
         global_subnet_dec_out_channels = [128 // factor, 256, 256]
         global_subnet_enc_in_channels = [
@@ -229,28 +232,40 @@ class MTANMiniUnet(nn.Module):
             task_subnet_out_channels_enc[-1]
         ] + task_subnet_out_channels_dec[:-1]
 
-        task_attn_modules_enc = nn.ModuleList([
-            nn.ModuleList([
-                AttentionModuleEncoder(
-                    in_channels=task_attn_in_channels_enc[i],
-                    out_channels=task_subnet_out_channels_enc[i],
-                    prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[i],
+        task_attn_modules_enc = nn.ModuleList(
+            [
+                nn.ModuleList(
+                    [
+                        AttentionModuleEncoder(
+                            in_channels=task_attn_in_channels_enc[i],
+                            out_channels=task_subnet_out_channels_enc[i],
+                            prev_layer_out_channels=task_attn_prev_layer_out_channels_enc[
+                                i
+                            ],
+                        )
+                        for _ in range(self.num_tasks)
+                    ]
                 )
-                for _ in range(self.num_tasks)
-            ])
-            for i in range(len(task_attn_in_channels_enc))
-        ])
-        task_attn_modules_dec = nn.ModuleList([
-            nn.ModuleList([
-                AttentionModuleDecoder(
-                    in_channels=task_attn_in_channels_dec[i],
-                    out_channels=task_subnet_out_channels_dec[i],
-                    prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[i],
+                for i in range(len(task_attn_in_channels_enc))
+            ]
+        )
+        task_attn_modules_dec = nn.ModuleList(
+            [
+                nn.ModuleList(
+                    [
+                        AttentionModuleDecoder(
+                            in_channels=task_attn_in_channels_dec[i],
+                            out_channels=task_subnet_out_channels_dec[i],
+                            prev_layer_out_channels=task_attn_prev_layer_out_channels_dec[
+                                i
+                            ],
+                        )
+                        for _ in range(self.num_tasks)
+                    ]
                 )
-                for _ in range(self.num_tasks)
-            ])
-            for i in range(len(task_attn_in_channels_dec))
-        ])
+                for i in range(len(task_attn_in_channels_dec))
+            ]
+        )
 
         self.enc_layers = nn.ModuleList(
             [
