@@ -13,6 +13,7 @@ from vision_mtl.lit_module import MTLModule
 from vision_mtl.pipeline_utils import (
     build_model,
     log_args,
+    print_metrics,
     save_ckpt,
     summarize_epoch_metrics,
 )
@@ -44,14 +45,17 @@ def train_model(
 
     module.to(device)
 
-    for epoch in tqdm(range(num_epochs), desc="Epochs"):
+    epoch_pbar = tqdm(range(num_epochs), desc="Epochs")
+
+    for epoch in epoch_pbar:
         print(f"### Epoch {epoch+1}/{num_epochs} ###")
         stage = "train"
         print(f"---{stage.upper()}---")
 
         train_loss = 0
 
-        for batch in tqdm(train_loader, desc="Train Batches"):
+        train_pbar = tqdm(train_loader, desc="Train Batches")
+        for batch in train_pbar:
             optimizer.zero_grad()
             batch = module.transfer_batch_to_device(batch, device, 0)
             loss = module.training_step(batch, batch_idx=0)
@@ -62,12 +66,15 @@ def train_model(
             train_loss += loss.item()
             for k, v in module.step_outputs[stage].items():
                 logger.log_metrics({f"{stage}/{k}": v[-1]}, step=global_step)
+            pbar_postfix = print_metrics(f"{stage}", module.step_outputs[stage])
+            train_pbar.set_postfix_str(pbar_postfix)
+            train_pbar.update()
 
             global_step += 1
 
         train_epoch_metrics = summarize_epoch_metrics(module.step_outputs, stage)
-        for k, v in train_epoch_metrics.items():
-            print(f"{stage}/epoch_{k}", v)
+        pbar_postfix = print_metrics(f"epoch/{stage}", train_epoch_metrics)
+        epoch_pbar.set_postfix_str(pbar_postfix)
         logger.log_metrics(train_epoch_metrics, step=epoch)
 
         if (epoch + 1 % args.val_epoch_freq) == 0:
@@ -77,19 +84,24 @@ def train_model(
             val_loss = 0
 
             with torch.no_grad():
-                for batch in tqdm(val_loader, desc="Val Batches"):
+                val_pbar = tqdm(val_loader, desc="Val Batches")
+                for batch in val_pbar:
                     batch = module.transfer_batch_to_device(batch, device, 0)
                     loss = module.validation_step(batch, batch_idx=0)
 
                     val_loss += loss.item()
                     for k, v in module.step_outputs[stage].items():
                         logger.log_metrics({f"{stage}/{k}": v[-1]}, step=val_step)
+                    pbar_postfix = print_metrics(f"{stage}", module.step_outputs[stage])
+                    val_pbar.set_postfix_str(pbar_postfix)
+                    val_pbar.update()
 
                     val_step += 1
 
             val_epoch_metrics = summarize_epoch_metrics(module.step_outputs, stage)
-            for k, v in val_epoch_metrics.items():
-                print(f"{stage}/epoch_{k}", v)
+            pbar_postfix = print_metrics(f"epoch/{stage}", module.step_outputs[stage])
+            epoch_pbar.set_postfix_str(pbar_postfix)
+
             logger.log_metrics(val_epoch_metrics, step=epoch)
 
             scheduler.step(val_loss)
