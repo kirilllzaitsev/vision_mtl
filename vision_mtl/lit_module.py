@@ -207,7 +207,8 @@ class MTLModule(pl.LightningModule):
                 )
 
     def parameters(self, recurse: bool = True):
-        return self.model.parameters()
+        for p in self.model.parameters():
+            yield p
 
     def to(self, *args: Any, **kwargs: Any):
         self = super().to(*args, **kwargs)
