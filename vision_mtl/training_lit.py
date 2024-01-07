@@ -120,6 +120,13 @@ def train_model(
             )
 
 
+def predict(datamodule, module):
+    preds = []
+    for pred_batch in datamodule.predict_dataloader():
+        pred_batch = module.transfer_batch_to_device(pred_batch, cfg.device, 0)
+        preds.append(module.predict_step(pred_batch, 0, 0))
+    return preds
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -143,9 +150,6 @@ if __name__ == "__main__":
         cfg.device,
     )
 
-    preds = []
-    for pred_batch in datamodule.predict_dataloader():
-        pred_batch = module.transfer_batch_to_device(pred_batch, cfg.device, 0)
-        preds.append(module.predict_step(pred_batch, 0, 0))
+    preds = predict(datamodule, module)
 
-    plot_preds(args.batch_size, datamodule.predict_dataloader(), preds)
+    plot_preds(args.batch_size, next(iter(datamodule.predict_dataloader())), preds[0])

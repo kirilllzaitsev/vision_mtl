@@ -85,10 +85,12 @@ def plot_annotated_segm_mask_v1(mask, class_names):
     plt.show()
 
 
-def plot_preds(batch_size, predict_dataloader, preds):
+def plot_preds(batch_size, predict_inputs_batch, preds_batch):
     ncols = 1 + 2 + 2
     fig, ax = plt.subplots(batch_size, ncols, figsize=(10, ncols * batch_size))
-    for row_idx, (sample, pred_sample) in enumerate(zip(predict_dataloader, preds)):
+    for row_idx, (sample, pred_sample) in enumerate(
+        zip(predict_inputs_batch, preds_batch)
+    ):
         if batch_size == 1:
             ax_0 = ax[0]
             ax_1 = ax[1]
