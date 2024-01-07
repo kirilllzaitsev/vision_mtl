@@ -70,12 +70,20 @@ def summarize_epoch_metrics(step_outputs, stage):
         step_results[key].clear()
 
     metrics = {
-        f"{stage}/loss": loss,
-        f"{stage}/accuracy": accuracy,
-        f"{stage}/jaccard_index": jaccard_index,
-        f"{stage}/fbeta_score": fbeta_score,
+        f"{stage}/epoch/loss": loss,
+        f"{stage}/epoch/accuracy": accuracy,
+        f"{stage}/epoch/jaccard_index": jaccard_index,
+        f"{stage}/epoch/fbeta_score": fbeta_score,
     }
     return metrics
+
+
+def print_metrics(prefix, train_epoch_metrics):
+    pbar_postfix = ""
+    for k, v in train_epoch_metrics.items():
+        print(f"{prefix}/{k}", v)
+        pbar_postfix += f"{k}: {v[-1]:.3f}\t"
+    return pbar_postfix
 
 
 def save_ckpt(
