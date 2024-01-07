@@ -67,3 +67,7 @@ class CityscapesDataset(Dataset):
                 dict_paths["depth"].append(f"{base_dir}/depth/{name}.npy")
 
         return dict_paths
+
+    def load_benchmark_batch(self) -> dict:
+        batch = torch.load(cfg.data.benchmark_batch_path)
+        return batch
