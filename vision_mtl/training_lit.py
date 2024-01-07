@@ -81,6 +81,17 @@ def train_model(
             stage = "val"
             print(f"---{stage.upper()}---")
 
+            if benchmark_batch is not None:
+                benchmark_preds = module.predict_step(benchmark_batch, 0, 0)
+                fig = plot_preds(
+                    batch_size=4,
+                    inputs_batch=benchmark_batch,
+                    preds_batch=benchmark_preds,
+                )
+                exp.log_figure("benchmark_preds", fig)
+                plt.show()
+                plt.close()
+
             val_loss = 0
 
             with torch.no_grad():
