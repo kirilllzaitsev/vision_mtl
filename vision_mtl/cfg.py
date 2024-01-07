@@ -23,11 +23,14 @@ class BasicModelConfig(ModelConfig):
 @dataclass
 class LoggerConfig:
     api_key: str = os.environ["comet_api_key"]
+    username: str = os.environ["comet_username"]
+    project_name: str = "vision-mtl"
 
 
 @dataclass
 class DataConfig:
     data_dir: str = os.environ["data_base_dir"]
+    benchmark_batch_path: str = f"{data_dir}/benchmark_batch.pt"
     num_classes: int = 19
     height: int = 128
     width: int = 256
