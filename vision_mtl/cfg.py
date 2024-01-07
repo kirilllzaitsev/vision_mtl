@@ -99,17 +99,19 @@ class VisConfig:
 
 
 @dataclass
-class Config:
+class PipelineConfig:
     model: ModelConfig = BasicModelConfig()
     data: DataConfig = DataConfig()
     logger: LoggerConfig = LoggerConfig()
     vis: VisConfig = VisConfig()
 
-    device: str = "cpu"
+    # device: str = "cpu"
     device: str = "cuda"
 
     debug: bool = False
     seed: int = 11
 
+    log_root_dir = Path(__file__).parent.parent / "lightning_logs"
 
-cfg = Config()
+
+cfg = PipelineConfig()
