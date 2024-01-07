@@ -18,7 +18,7 @@ class CityscapesDataModule(pl.LightningDataModule):
         test_transform: Union[T.Compose, A.Compose] = test_transform,
         train_size: float = 0.8,
         batch_size: int = 4,
-        num_workers: int = 4,
+        num_workers: int = 0,
         do_overfit: bool = False,
     ):
         super().__init__()
@@ -41,6 +41,7 @@ class CityscapesDataModule(pl.LightningDataModule):
             data_base_dir=self.data_base_dir,
             transforms=self.train_transform,
         )
+        self.benchmark_batch = data_train.load_benchmark_batch()
         if stage == "fit" or stage is None:
             if self.do_overfit:
                 self.data_val = self.data_train = torch.utils.data.Subset(
