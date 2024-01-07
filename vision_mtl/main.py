@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 
 from vision_mtl.cfg import cfg
 from vision_mtl.lit_datamodule import CityscapesDataModule
-from vision_mtl.lit_module import LightningPhotopicVisionModule
+from vision_mtl.lit_module import MTLModule
 from vision_mtl.models.basic_model import BasicMTLModel
 
 
@@ -33,7 +33,7 @@ def main(
     )
 
     # LightningModule
-    lightning_model = LightningPhotopicVisionModule(
+    lightning_model = MTLModule(
         model=model,
         lr=3e-4,
     )
@@ -45,7 +45,7 @@ def main(
 if __name__ == "__main__":
     main(
         callbacks=[],
-        model=LightningPhotopicVisionModule(
+        model=MTLModule(
             model=BasicMTLModel(),
         ),
         logger=None,

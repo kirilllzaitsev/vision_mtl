@@ -1,19 +1,17 @@
-import typing as t
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightning import LightningModule
-from torchmetrics import Accuracy, FBetaScore, JaccardIndex, MaxMetric, MeanMetric
+from torchmetrics import Accuracy, FBetaScore, JaccardIndex
 
 from vision_mtl.cfg import cfg
 from vision_mtl.losses import SILogLoss
 from vision_mtl.models.basic_model import BasicMTLModel
 
 
-class LightningPhotopicVisionModule(pl.LightningModule):
+class MTLModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
@@ -208,10 +206,18 @@ class LightningPhotopicVisionModule(pl.LightningModule):
                     tag=name, values=grads, global_step=self.trainer.global_step
                 )
 
+    def parameters(self, recurse: bool = True):
+        return self.model.parameters()
+
+    def to(self, *args: Any, **kwargs: Any):
+        self = super().to(*args, **kwargs)
+        self.model.to(*args, **kwargs)
+        return self
+
 
 if __name__ == "__main__":
     model = BasicMTLModel(segm_classes=19)
-    module = LightningPhotopicVisionModule(model).to(cfg.device)
+    module = MTLModule(model).to(cfg.device)
     print(module)
     batch_size = 1
     sample_batch = {
