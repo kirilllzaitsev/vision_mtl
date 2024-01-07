@@ -1,4 +1,8 @@
+import argparse
+
 import torch
+import yaml
+
 from vision_mtl.cfg import cfg
 from vision_mtl.models.basic_model import BasicMTLModel
 from vision_mtl.models.cross_stitch_model import CSNet, get_model_with_dense_preds
@@ -72,3 +76,53 @@ def summarize_epoch_metrics(step_outputs, stage):
         f"{stage}/fbeta_score": fbeta_score,
     }
     return metrics
+
+
+def save_ckpt(
+    module, optimizer, scheduler, epoch, save_path_model, save_path_session, exp=None
+):
+    torch.save(
+        {
+            "model": module.state_dict(),
+        },
+        save_path_model,
+    )
+    torch.save(
+        {
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "epoch": epoch,
+        },
+        save_path_session,
+    )
+    if exp:
+        log_ckpt_to_exp(exp, save_path_model, "ckpt")
+        log_ckpt_to_exp(exp, save_path_session, "ckpt")
+    print(f"Saved model to {save_path_model}")
+
+
+def log_params_to_exp(experiment, params: dict, prefix: str):
+    experiment.log_parameters({f"{prefix}/{str(k)}": v for k, v in params.items()})
+
+
+def log_ckpt_to_exp(experiment, ckpt_path: str, model_name):
+    experiment.log_model(model_name, ckpt_path, overwrite=False)
+
+
+def log_args(args, save_path, exp=None):
+    if isinstance(args, argparse.Namespace):
+        args = vars(args)
+    with open(save_path, "w") as f:
+        yaml.dump(
+            {"args": args},
+            f,
+            default_flow_style=False,
+        )
+    if exp:
+        exp.log_asset(save_path)
+
+
+def load_args(load_path):
+    with open(load_path, "r") as f:
+        args = yaml.load(f, Loader=yaml.FullLoader)["args"]
+    return argparse.Namespace(**args)
