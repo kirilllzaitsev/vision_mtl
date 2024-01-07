@@ -1,4 +1,6 @@
 import argparse
+import os
+import re
 
 import torch
 import yaml
@@ -39,7 +41,7 @@ def build_model(args):
                 segm_classes=1, activation=None, backbone_params=backbone_params
             ),
             "segm": get_model_with_dense_preds(
-                segm_classes=cfg.data.num_classes,
+                segm_classes=config.data.num_classes,
                 activation=None,
                 backbone_params=backbone_params,
             ),
@@ -134,3 +136,35 @@ def load_args(load_path):
     with open(load_path, "r") as f:
         args = yaml.load(f, Loader=yaml.FullLoader)["args"]
     return argparse.Namespace(**args)
+
+
+def load_ckpt(ckpt_dir, epoch=None):
+    session_ckpt = load_ckpt_session(ckpt_dir)
+    session_ckpt, model_ckpt = load_ckpt_model(ckpt_dir, epoch=epoch)
+    return session_ckpt, model_ckpt
+
+
+def load_ckpt_model(ckpt_dir, epoch=None):
+    artifact_name_regex = r"model_(\d+).pt"
+    if epoch is not None:
+        artifact_name = f"model_{epoch}.pt"
+    else:
+        available_model_ckpts = [
+            f for f in os.listdir(ckpt_dir) if re.match(artifact_name_regex, f)
+        ]
+        if len(available_model_ckpts) == 0:
+            raise ValueError("No model ckpt found")
+        artifact_name = sorted(
+            available_model_ckpts,
+            key=lambda x: int(re.match(artifact_name_regex, x).group(1)),
+        )[-1]
+    model_ckpt_path = os.path.join(ckpt_dir, artifact_name)
+    print(f"Loading model from {model_ckpt_path}")
+    model_ckpt = torch.load(model_ckpt_path)
+    return model_ckpt
+
+
+def load_ckpt_session(ckpt_dir):
+    session_ckpt_path = os.path.join(ckpt_dir, "session.pt")
+    session_ckpt = torch.load(session_ckpt_path)
+    return session_ckpt
