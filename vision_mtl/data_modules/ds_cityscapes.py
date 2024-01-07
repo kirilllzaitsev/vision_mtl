@@ -21,7 +21,7 @@ class CityscapesDataset(Dataset):
         self.paths = self.parse_paths()
 
     def __len__(self) -> int:
-        return len(self.paths)
+        return len(self.paths["img"])
 
     def __getitem__(self, idx) -> dict:
         data_path, mask_path, depth_path = (
