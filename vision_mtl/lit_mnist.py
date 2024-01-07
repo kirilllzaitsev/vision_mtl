@@ -1,13 +1,18 @@
 import os
 
 import torch
-from lightning.pytorch import LightningModule, Trainer
+from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.callbacks import RichProgressBar
+from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
+from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torchmetrics import Accuracy
 from torchvision import transforms
 from torchvision.datasets import MNIST
+
+from vision_mtl.cfg import cfg
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", "./data")
 AVAIL_GPUS = min(1, torch.cuda.device_count())
@@ -15,8 +20,9 @@ BATCH_SIZE = 256 if AVAIL_GPUS else 64
 
 
 class LitMNIST(LightningModule):
-    def __init__(self, data_dir=PATH_DATASETS, hidden_size=64, learning_rate=2e-4):
+    """The model from https://pytorch-lightning.readthedocs.io/en/1.5.10/notebooks/lightning_examples/mnist-hello-world.html"""
 
+    def __init__(self, data_dir=PATH_DATASETS, hidden_size=64, learning_rate=2e-4):
         super().__init__()
 
         # Set our init args as class attributes
@@ -80,25 +86,25 @@ class LitMNIST(LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
 
-    ####################
-    # DATA RELATED HOOKS
-    ####################
-
     def prepare_data(self):
         # download
         MNIST(self.data_dir, train=True, download=True)
         MNIST(self.data_dir, train=False, download=True)
 
     def setup(self, stage=None):
-
         # Assign train/val datasets for use in dataloaders
         if stage == "fit" or stage is None:
             mnist_full = MNIST(self.data_dir, train=True, transform=self.transform)
-            self.mnist_train, self.mnist_val = random_split(mnist_full, [55000, 5000])
+            self.mnist_train = self.mnist_val = torch.utils.data.Subset(
+                mnist_full, range(100)
+            )
+            # self.mnist_train, self.mnist_val = random_split(mnist_full, [55000, 5000])
 
         # Assign test dataset for use in dataloader(s)
         if stage == "test" or stage is None:
-            self.mnist_test = MNIST(self.data_dir, train=False, transform=self.transform)
+            self.mnist_test = MNIST(
+                self.data_dir, train=False, transform=self.transform
+            )
 
     def train_dataloader(self):
         return DataLoader(self.mnist_train, batch_size=BATCH_SIZE)
@@ -118,51 +124,53 @@ class LitMNIST(LightningModule):
         return batch
 
 
-model = LitMNIST(learning_rate=2e-4)
-from lightning.pytorch.callbacks import RichProgressBar, ModelCheckpoint
-from lightning.pytorch.loggers import TensorBoardLogger
-from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
+if __name__ == "__main__":
+    model = LitMNIST(learning_rate=2e-4)
 
-pbar_callback = RichProgressBar(
-    refresh_rate=1,
-    leave=True,
-    theme=RichProgressBarTheme(
-        metrics="grey7",
-        metrics_text_delimiter=" ",
-        metrics_format=".3f",
-    ),
-)
-callbacks = [pbar_callback]
-logger = TensorBoardLogger("/mnt/wext/projects/vision_mtl/vision_mtl/lightning_logs", name="my_model")
-trainer = Trainer(
-    accelerator="auto",
-    max_epochs=200,
-    logger=logger,
-)
-trainer.fit(model)
-# global_step = 0
+    train_with_lightning = False
+    # train_with_lightning = True
 
-# optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
+    if train_with_lightning:
+        pbar_callback = RichProgressBar(
+            refresh_rate=1,
+            leave=True,
+            theme=RichProgressBarTheme(
+                metrics="grey7",
+                # metrics_text_delimiter=" ",
+                # metrics_format=".3f",
+            ),
+        )
+        callbacks = [pbar_callback]
+        logger = TensorBoardLogger(cfg.log_root_dir, name="my_model")
+        trainer = Trainer(
+            accelerator="auto",
+            max_epochs=200,
+            logger=logger,
+            callbacks=callbacks,
+        )
+        trainer.fit(model)
+    else:
+        global_step = 0
 
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-# model = model.to(device)
-# model.prepare_data()
-# model.setup("fit")
+        optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
 
-# num_epochs = 10
-# for epoch in range(num_epochs):
-#     print(f"### Epoch {epoch+1}/{num_epochs} ###")
-#     model.train()
-#     stage = "train"
-#     for batch in model.train_dataloader():
-#         optimizer.zero_grad()
-#         batch = model.transfer_batch_to_device(batch, device, 0)
-#         train_loss = model.training_step(batch, batch_idx=0)
-#         print(f"{train_loss.item()=}")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = model.to(device)
+        model.prepare_data()
+        model.setup("fit")
 
-#         train_loss.backward()
-#         optimizer.step()
+        num_epochs = 10
+        for epoch in range(num_epochs):
+            print(f"### Epoch {epoch+1}/{num_epochs} ###")
+            model.train()
+            stage = "train"
+            for batch in model.train_dataloader():
+                optimizer.zero_grad()
+                batch = model.transfer_batch_to_device(batch, device, 0)
+                train_loss = model.training_step(batch, batch_idx=0)
+                print(f"{train_loss.item()=}")
 
-#         global_step += 1
+                train_loss.backward()
+                optimizer.step()
 
-# trainer.test()
+                global_step += 1
