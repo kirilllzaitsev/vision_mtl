@@ -7,6 +7,7 @@ def parse_args():
     parser.add_argument("--do_overfit", action="store_true")
     parser.add_argument("--do_optimize", action="store_true")
     parser.add_argument("--do_plot_preds", action="store_true")
+    parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--num_workers", type=int, default=0)
@@ -22,6 +23,7 @@ def parse_args():
         default="basic",
     )
     parser.add_argument("--ckpt_dir")
+    parser.add_argument("--run_name")
     parser.add_argument("--lr", type=float, default=5e-3)
     args, _ = parser.parse_known_args()
     return args

@@ -11,7 +11,10 @@ def plot_batch(batch):
     fig, axs = plt.subplots(batch_size, 3, figsize=(batch_size * 5, ncols * 2))
     for i in range(batch_size):
         sample = {k: v[i] for k, v in batch.items()}
-        plot_sample(sample, axs=axs[i] if batch_size > 1 else axs)
+        sample_axs = plot_sample(sample, axs=axs[i] if batch_size > 1 else axs)
+        if i != batch_size - 1:
+            for ax in sample_axs:
+                ax.axis("off")
     plt.show()
 
 
@@ -85,12 +88,10 @@ def plot_annotated_segm_mask_v1(mask, class_names):
     plt.show()
 
 
-def plot_preds(batch_size, predict_inputs_batch, preds_batch):
+def plot_preds(batch_size, inputs_batch, preds_batch):
     ncols = 1 + 2 + 2
     fig, ax = plt.subplots(batch_size, ncols, figsize=(10, ncols * batch_size))
-    for row_idx, (sample, pred_sample) in enumerate(
-        zip(predict_inputs_batch, preds_batch)
-    ):
+    for row_idx in range(batch_size):
         if batch_size == 1:
             ax_0 = ax[0]
             ax_1 = ax[1]
@@ -104,11 +105,11 @@ def plot_preds(batch_size, predict_inputs_batch, preds_batch):
             ax_3 = ax[row_idx, 3]
             ax_4 = ax[row_idx, 4]
 
-        img = sample["img"]
-        gt_depth = sample["depth"]
-        pred_depth = pred_sample["depth"].detach()
-        gt_segm = sample["mask"]
-        pred_segm = pred_sample["segm"].detach()
+        img = inputs_batch["img"][row_idx]
+        gt_depth = inputs_batch["depth"][row_idx]
+        pred_depth = preds_batch["depth"][row_idx].detach()
+        gt_segm = inputs_batch["mask"][row_idx]
+        pred_segm = preds_batch["segm"][row_idx].detach()
 
         ax_0.imshow(img.squeeze().cpu().numpy().transpose(1, 2, 0))
         ax_1.imshow(gt_depth.squeeze().cpu().numpy())

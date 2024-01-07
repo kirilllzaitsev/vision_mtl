@@ -41,7 +41,7 @@ def build_model(args):
                 segm_classes=1, activation=None, backbone_params=backbone_params
             ),
             "segm": get_model_with_dense_preds(
-                segm_classes=config.data.num_classes,
+                segm_classes=cfg.data.num_classes,
                 activation=None,
                 backbone_params=backbone_params,
             ),
@@ -52,8 +52,7 @@ def build_model(args):
     return model
 
 
-def summarize_epoch_metrics(step_outputs, stage):
-    step_results = step_outputs[stage]
+def summarize_epoch_metrics(step_results):
     loss = torch.mean(torch.tensor([loss for loss in step_results["loss"]]))
 
     accuracy = torch.mean(
@@ -72,20 +71,27 @@ def summarize_epoch_metrics(step_outputs, stage):
         step_results[key].clear()
 
     metrics = {
-        f"{stage}/epoch/loss": loss,
-        f"{stage}/epoch/accuracy": accuracy,
-        f"{stage}/epoch/jaccard_index": jaccard_index,
-        f"{stage}/epoch/fbeta_score": fbeta_score,
+        "loss": loss,
+        "accuracy": accuracy,
+        "jaccard_index": jaccard_index,
+        "fbeta_score": fbeta_score,
     }
     return metrics
 
 
 def print_metrics(prefix, train_epoch_metrics):
-    pbar_postfix = ""
+    metrics_str = ""
     for k, v in train_epoch_metrics.items():
-        print(f"{prefix}/{k}", v)
-        pbar_postfix += f"{k}: {v[-1]:.3f}\t"
-    return pbar_postfix
+        if isinstance(v, torch.Tensor):
+            if v.numel() > 1:
+                value = v[-1]
+            else:
+                value = v.item()
+        else:
+            value = v[-1]
+        print(f"{prefix}/{k}: {value:.3f}\t", end="")
+        metrics_str += f"{k}: {value:.3f}\t"
+    return metrics_str
 
 
 def save_ckpt(
