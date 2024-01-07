@@ -128,3 +128,14 @@ def plot_preds(batch_size, predict_inputs_batch, preds_batch):
         ax_0.set_ylabel(f"Sample {row_idx}")
     # break
     plt.show()
+    return fig
+
+
+def convert_figure_to_image(fig):
+    canvas = fig.canvas
+    canvas.draw()  # Draw the canvas, cache the renderer
+
+    image_flat = np.frombuffer(canvas.tostring_rgb(), dtype="uint8")  # (H * W * 3,)
+    # NOTE: reversed converts (W, H) from get_width_height to (H, W)
+    image = image_flat.reshape(*reversed(canvas.get_width_height()), 3)  # (H, W, 3)
+    return image
