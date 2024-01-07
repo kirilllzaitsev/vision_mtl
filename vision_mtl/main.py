@@ -1,9 +1,9 @@
 import typing as t
 
-import lightning.pytorch as pl
+import pytorch_lightning as pl
 
 from vision_mtl.cfg import cfg
-from vision_mtl.lit_datamodule import PhotopicVisionDataModule
+from vision_mtl.lit_datamodule import CityscapesDataModule
 from vision_mtl.lit_module import LightningPhotopicVisionModule
 from vision_mtl.models.basic_model import BasicMTLModel
 
@@ -28,7 +28,7 @@ def main(
     )
 
     # Datamodule
-    datamodule = PhotopicVisionDataModule(
+    datamodule = CityscapesDataModule(
         data_base_dir=cfg.data.data_dir,
     )
 

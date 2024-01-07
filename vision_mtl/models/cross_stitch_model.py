@@ -19,7 +19,9 @@ class CrossStitchLayer(nn.Module):
         self.num_tasks = num_tasks
         self.channels_wise_stitching = num_channels is not None
         if self.channels_wise_stitching:
-            self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks, num_channels))
+            self.weights = nn.Parameter(
+                torch.Tensor(num_tasks, num_tasks, num_channels)
+            )
         else:
             self.weights = nn.Parameter(torch.Tensor(num_tasks, num_tasks))
 
@@ -73,7 +75,8 @@ class CSNet(nn.Module):
             ]
         )
         self.valid_cross_stitch_layer_names = [
-            layer_name.replace('.', '_') for layer_name in self.joint_layer_names_before_stitch
+            layer_name.replace(".", "_")
+            for layer_name in self.joint_layer_names_before_stitch
         ]
         self.true_cross_stitch_layer_names = [
             layer_name for layer_name in self.joint_layer_names_before_stitch
@@ -162,7 +165,7 @@ class CSNet(nn.Module):
                 layers_applied.append(layer_name)
             if layer_name in self.joint_layer_names_before_stitch:
                 # continue
-                valid_layer_name = layer_name.replace('.', '_')
+                valid_layer_name = layer_name.replace(".", "_")
                 cross_stitch = self.cross_stitch_layers[valid_layer_name]
                 model_features = cross_stitch(
                     torch.stack(

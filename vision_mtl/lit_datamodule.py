@@ -1,8 +1,7 @@
 from typing import Union
 
 import albumentations as A
-import albumentations.pytorch as pytorch
-import lightning.pytorch as pl
+import pytorch_lightning as pl
 import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
@@ -11,8 +10,7 @@ from vision_mtl.data_modules.ds_cityscapes import CityscapesDataset
 from vision_mtl.data_modules.transforms import test_transform, train_transform
 
 
-class PhotopicVisionDataModule(pl.LightningDataModule):
-
+class CityscapesDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_base_dir: str,
@@ -44,7 +42,6 @@ class PhotopicVisionDataModule(pl.LightningDataModule):
             transforms=self.train_transform,
         )
         if stage == "fit" or stage is None:
-
             if self.do_overfit:
                 self.data_val = self.data_train = torch.utils.data.Subset(
                     data_train,
