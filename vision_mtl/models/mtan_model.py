@@ -232,6 +232,8 @@ class MTANMiniUnet(nn.Module):
         in_channels,
         map_tasks_to_num_channels,
         task_subnets_hidden_channels=128,
+        encoder_first_channel=64,
+        encoder_num_channels=4,
     ):
         super().__init__()
 
@@ -241,23 +243,14 @@ class MTANMiniUnet(nn.Module):
         # global and local subnets are not related. the only connection between them is that local subnet needs to
         # know the dimensionality of conv1 and conv2. The local subnet defines its own output dims!
         self.global_subnet_enc_out_channels = [
-            64,
-            128,
-            256,
-            512,
-        ]
-        self.global_subnet_enc_out_channels = [
-            x // 2 for x in self.global_subnet_enc_out_channels
+            encoder_first_channel * (2**i) for i in range(encoder_num_channels)
         ]
         self.global_subnet_enc_in_channels = [
             self.in_channels
         ] + self.global_subnet_enc_out_channels[:-1]
 
         # dec_0 is at the bottleneck of the global subnet
-        self.global_subnet_dec_out_channels = [512, 256, 128, 64]
-        self.global_subnet_dec_out_channels = [
-            x // 2 for x in self.global_subnet_dec_out_channels
-        ]
+        self.global_subnet_dec_out_channels = self.global_subnet_enc_out_channels[::-1]
 
         self.bottleneck = DoubleConv(
             in_channels=self.global_subnet_enc_out_channels[-1],
@@ -269,7 +262,7 @@ class MTANMiniUnet(nn.Module):
         ] + self.global_subnet_dec_out_channels[:-1]
 
         self.task_attn_out_channels_enc = [
-            x // 2 for x in self.global_subnet_enc_out_channels
+            x for x in self.global_subnet_enc_out_channels
         ]
         self.task_attn_prev_layer_out_channels_enc = [
             None
@@ -279,7 +272,7 @@ class MTANMiniUnet(nn.Module):
         ] + self.global_subnet_enc_out_channels[:-1]
 
         self.task_subnet_out_channels_dec = [
-            x // 2 for x in self.global_subnet_dec_out_channels
+            x for x in self.global_subnet_dec_out_channels
         ]
         self.task_attn_in_channels_dec = [
             self.global_subnet_enc_out_channels[-1] * 2,
