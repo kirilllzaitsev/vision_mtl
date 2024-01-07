@@ -242,7 +242,7 @@ def train_model(
 
 if args.model_name == "basic":
     # basic
-    model = BasicMTLModel(decoder_first_channel=512, num_decoder_layers=5)
+    model = BasicMTLModel(decoder_first_channel=540, num_decoder_layers=5)
 elif args.model_name == "mtan":
     # MTAN
     map_tasks_to_num_channels = {
@@ -253,10 +253,11 @@ elif args.model_name == "mtan":
         in_channels=3,
         map_tasks_to_num_channels=map_tasks_to_num_channels,
         task_subnets_hidden_channels=128,
+        encoder_first_channel=32,
+        encoder_num_channels=4,
     )
 elif args.model_name == "csnet":
     # cross-stitch
-    num_classes = 10
     backbone_params = dict(
         encoder_name="timm-mobilenetv3_large_100",
         encoder_weights="imagenet",
