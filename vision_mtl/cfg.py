@@ -1,5 +1,4 @@
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -9,25 +8,21 @@ from omegaconf import MISSING
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 
 
-@dataclass
 class ModelConfig:
     encoder_name: str = MISSING
     encoder_weights: str = "imagenet"
 
 
-@dataclass
 class BasicModelConfig(ModelConfig):
     encoder_name: str = "timm-mobilenetv3_large_100"
 
 
-@dataclass
 class LoggerConfig:
     api_key: str = os.environ["comet_api_key"]
     username: str = os.environ["comet_username"]
     project_name: str = "vision-mtl"
 
 
-@dataclass
 class DataConfig:
     data_dir: str = os.environ["data_base_dir"]
     benchmark_batch_path: str = f"{data_dir}/benchmark_batch.pt"
@@ -35,30 +30,28 @@ class DataConfig:
     height: int = 128
     width: int = 256
 
-    class_names: list = field(
-        default_factory=lambda: [
-            "road",
-            "sidewalk",
-            "building",
-            "wall",
-            "fence",
-            "pole",
-            "traffic light",
-            "traffic sign",
-            "vegetation",
-            "terrain",
-            "sky",
-            "person",
-            "rider",
-            "car",
-            "truck",
-            "bus",
-            "train",
-            "motorcycle",
-            "bicycle",
-            "artifact",
-        ]
-    )
+    class_names: list = [
+        "road",
+        "sidewalk",
+        "building",
+        "wall",
+        "fence",
+        "pole",
+        "traffic light",
+        "traffic sign",
+        "vegetation",
+        "terrain",
+        "sky",
+        "person",
+        "rider",
+        "car",
+        "truck",
+        "bus",
+        "train",
+        "motorcycle",
+        "bicycle",
+        "artifact",
+    ]
 
     batch_size: int = 32
     num_workers: int = 4
@@ -73,7 +66,6 @@ class DataConfig:
     augment: bool = True
 
 
-@dataclass
 class VisConfig:
     rgb_palette: np.ndarray = np.array(
         [
@@ -101,7 +93,6 @@ class VisConfig:
     )
 
 
-@dataclass
 class PipelineConfig:
     model: ModelConfig = BasicModelConfig()
     data: DataConfig = DataConfig()
