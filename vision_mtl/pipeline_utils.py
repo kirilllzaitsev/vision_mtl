@@ -1,7 +1,9 @@
 import argparse
+import glob
 import os
 import re
 
+import comet_ml
 import torch
 import yaml
 
@@ -174,3 +176,39 @@ def load_ckpt_session(ckpt_dir):
     session_ckpt_path = os.path.join(ckpt_dir, "session.pt")
     session_ckpt = torch.load(session_ckpt_path)
     return session_ckpt
+
+
+def create_tracking_exp(
+    args, exp_disabled=True, force_disabled=False, project_name=cfg.logger.project_name
+) -> comet_ml.Experiment:
+    exp_init_args = dict(
+        api_key=cfg.logger.api_key,
+        auto_output_logging="simple",
+        auto_metric_logging=True,
+        auto_param_logging=True,
+        log_env_details=True,
+        log_env_host=False,
+        log_env_gpu=True,
+        log_env_cpu=True,
+        log_code=False,
+        disabled=getattr(args, "exp_disabled", exp_disabled) or force_disabled,
+    )
+    if getattr(args, "resume_exp", False):
+        from comet_ml.api import API
+
+        api = API(api_key=cfg.logger.api_key)
+        exp_api = api.get(f"{cfg.logger.username}/{project_name}/{args.exp_name}")
+        experiment = comet_ml.ExistingExperiment(
+            **exp_init_args, experiment_key=exp_api.id
+        )
+    else:
+        experiment = comet_ml.Experiment(**exp_init_args, project_name=project_name)
+
+    for code_file in glob.glob("./*.py"):
+        experiment.log_code(code_file)
+
+    print(
+        f'Please leave a note about the experiment at {experiment._get_experiment_url(tab="notes")}'
+    )
+
+    return experiment
