@@ -189,18 +189,69 @@ def init_model(args):
     return module
 
 
-if __name__ == "__main__":
-    args = parse_args()
+def optuna_objective(trial, args):
+    param_keys = ["loss_segm_weight", "loss_depth_weight"]
+    loss_weights = {k: trial.suggest_float(k, 0.0, 1.0) for k in param_keys}
 
-    datamodule = CityscapesDataModule(
-        data_base_dir=cfg.data.data_dir,
-        batch_size=args.batch_size,
-        do_overfit=args.do_overfit,
-        num_workers=args.num_workers,
+    args = update_args(args, loss_weights)
+
+    main_components = create_main_components(init_model, args)
+    datamodule = main_components["datamodule"]
+    module = main_components["module"]
+
+    tools = create_tools(args)
+    exp = tools["exp"]
+    logger = tools["logger"]
+
+    exp.add_tags([f"trial_{trial.number}"])
+
+    fit_metrics = run_pipe(
+        args,
+        module,
+        datamodule,
+        args.num_epochs,
+        cfg.device,
+        exp=exp,
+        logger=logger,
     )
-    datamodule.setup()
 
-    module = init_model(args)
+    return np.mean(fit_metrics["val"]["accuracy"])
+
+
+def run_study(args):
+    import optuna
+    from optuna.trial import TrialState
+
+    pruner: optuna.pruners.BasePruner = optuna.pruners.MedianPruner()
+
+    study = optuna.create_study(direction="maximize", pruner=pruner)
+    args = copy.deepcopy(args)
+    args.num_epochs = 3
+
+    objective = functools.partial(optuna_objective, args=args)
+    study.optimize(objective, n_trials=args.n_trials, timeout=None, n_jobs=args.n_jobs)
+
+    pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+    complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+
+    print("Study statistics: ")
+    print("  Number of finished trials: ", len(study.trials))
+    print("  Number of pruned trials: ", len(pruned_trials))
+    print("  Number of complete trials: ", len(complete_trials))
+    print("Number of finished trials: {}".format(len(study.trials)))
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("  Value: {}".format(trial.value))
+
+    print("Trail with : \n")
+    print("=========================================")
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
+
+    return trial.params
 
     exp = create_tracking_exp(args)
     if not args.exp_disabled:
