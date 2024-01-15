@@ -1,11 +1,14 @@
 """This module trains the Lightning module in a standard way, i.e., with a vanilla PyTorch training loop.
 The reason for this is that the Lightning module does not get optimized withe the PyTorch Lightning Trainer."""
 
+import copy
+import functools
 import os
 from collections import defaultdict
 
 import comet_ml
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from pytorch_lightning.loggers import TensorBoardLogger
 from tqdm.auto import tqdm
@@ -253,6 +256,8 @@ def run_study(args):
 
     return trial.params
 
+
+def create_tools(args):
     exp = create_tracking_exp(args)
     if not args.exp_disabled:
         args.run_name = exp.name
@@ -270,6 +275,54 @@ def run_study(args):
     logger = TensorBoardLogger(cfg.log_root_dir, name=log_subdir_name)
     os.makedirs(logger.log_dir, exist_ok=True)
     log_args(args, f"{logger.log_dir}/train_args.yaml", exp=exp)
+    return {
+        "exp": exp,
+        "logger": logger,
+    }
+
+
+def create_main_components(init_model, args):
+    datamodule = CityscapesDataModule(
+        data_base_dir=cfg.data.data_dir,
+        batch_size=args.batch_size,
+        do_overfit=args.do_overfit,
+        num_workers=args.num_workers,
+    )
+    datamodule.setup()
+
+    module = init_model(args)
+    return {
+        "datamodule": datamodule,
+        "module": module,
+    }
+
+
+def update_args(args, optimal_params):
+    for k, v in optimal_params.items():
+        assert hasattr(args, k)
+        setattr(args, k, v)
+    return args
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    main_components = create_main_components(init_model, args)
+    datamodule = main_components["datamodule"]
+    module = main_components["module"]
+
+    if args.do_optimize:
+        optimal_params = run_study(args)
+        update_args(args, optimal_params)
+        args.exp_tags += ["best_trial"]
+
+    tools = create_tools(args)
+    exp = tools["exp"]
+    logger = tools["logger"]
+
+    main_components = create_main_components(init_model, args)
+    datamodule = main_components["datamodule"]
+    module = main_components["module"]
 
     run_pipe(
         args,
