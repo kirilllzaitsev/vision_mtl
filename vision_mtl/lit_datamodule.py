@@ -31,6 +31,7 @@ class CityscapesDataModule(pl.LightningDataModule):
         self.data_val: CityscapesDataset = None
         self.data_test: CityscapesDataset = None
         self.data_predict: CityscapesDataset = None
+        self.benchmark_batch = None
         self.train_transform = train_transform
         self.test_transform = test_transform
         self.save_hyperparameters()

@@ -91,8 +91,8 @@ def print_metrics(prefix, train_epoch_metrics):
                 value = v.item()
         else:
             value = v[-1]
-        print(f"{prefix}/{k}: {value:.3f}\t", end="")
-        metrics_str += f"{k}: {value:.3f}\t"
+        print(f"{prefix}/{k}: {value:.3f} ")
+        metrics_str += f"{k}: {value:.3f} "
     return metrics_str
 
 
