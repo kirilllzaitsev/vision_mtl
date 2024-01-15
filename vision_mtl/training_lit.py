@@ -150,17 +150,6 @@ def train_model(
                 save_path_session=save_path_session,
                 exp=exp,
             )
-
-    preds = predict(
-        datamodule.predict_dataloader(),
-        module,
-        args.batch_size,
-        cfg.device,
-        args.do_plot_preds,
-        exp=exp,
-    )
-    torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
-
     exp.end()
 
 
@@ -175,6 +164,13 @@ def predict(predict_dataloader, module, batch_size, device, do_plot_preds=False)
             plot_preds(batch_size, pred_batch, batch_preds)
     return preds
 
+
+def init_model(args):
+    model = build_model(args)
+    module = MTLModule(model=model, lr=args.lr)
+    if args.ckpt_dir:
+        module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
+    return module
 
 if __name__ == "__main__":
     args = parse_args()
