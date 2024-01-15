@@ -3,6 +3,7 @@ The reason for this is that the Lightning module does not get optimized withe th
 
 import os
 
+import comet_ml
 import matplotlib.pyplot as plt
 import torch
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -25,14 +26,12 @@ from vision_mtl.utils import parse_args
 from vision_mtl.vis_utils import plot_preds
 
 
-def train_model(
+def run_pipe(
     args,
     module: MTLModule,
-    train_loader,
-    val_loader,
+    datamodule: CityscapesDataModule,
     num_epochs,
     device,
-    benchmark_batch=None,
 ):
     exp = create_tracking_exp(args)
     if not args.exp_disabled:
@@ -42,7 +41,7 @@ def train_model(
         vars(args),
         "args",
     )
-    extra_tags = []
+    extra_tags = [args.model_name]
     exp.add_tags(extra_tags)
 
     log_subdir_name = f"training-{args.model_name}"
@@ -58,11 +57,12 @@ def train_model(
     optimizer = torch.optim.Adam(module.parameters(), lr=args.lr)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, factor=0.95, verbose=True
+        optimizer, patience=2, factor=0.9, verbose=True
     )
 
     module.to(device)
 
+    benchmark_batch = datamodule.benchmark_batch
     if benchmark_batch is not None:
         benchmark_batch = module.transfer_batch_to_device(benchmark_batch, device, 0)
 
@@ -75,7 +75,7 @@ def train_model(
 
         train_loss = 0
 
-        train_pbar = tqdm(train_loader, desc="Train Batches")
+        train_pbar = tqdm(datamodule.train_dataloader(), desc="Train Batches", leave=False)
         for batch in train_pbar:
             optimizer.zero_grad()
             batch = module.transfer_batch_to_device(batch, device, 0)
@@ -96,9 +96,12 @@ def train_model(
         train_epoch_metrics = summarize_epoch_metrics(module.step_outputs[stage])
         pbar_postfix = print_metrics(f"epoch/{stage}", train_epoch_metrics)
         epoch_pbar.set_postfix_str(pbar_postfix)
-        logger.log_metrics(train_epoch_metrics, step=epoch)
+        logger.log_metrics(
+            {f"epoch/{stage}/{k}": v for k, v in train_epoch_metrics.items()},
+            step=epoch,
+        )
 
-        if (epoch + 1 % args.val_epoch_freq) == 0:
+        if ((epoch + 1) % args.val_epoch_freq) == 0:
             stage = "val"
             print(f"---{stage.upper()}---")
 
@@ -109,14 +112,15 @@ def train_model(
                     inputs_batch=benchmark_batch,
                     preds_batch=benchmark_preds,
                 )
-                exp.log_figure("benchmark_preds", fig)
-                plt.show()
+                exp.log_figure("preds", fig)
+                if args.do_show_preds:
+                    plt.show()
                 plt.close()
 
             val_loss = 0
 
             with torch.no_grad():
-                val_pbar = tqdm(val_loader, desc="Val Batches")
+                val_pbar = tqdm(datamodule.val_dataloader(), desc="Val Batches", leave=False)
                 for batch in val_pbar:
                     batch = module.transfer_batch_to_device(batch, device, 0)
                     loss = module.validation_step(batch, batch_idx=0)
@@ -134,7 +138,10 @@ def train_model(
             pbar_postfix = print_metrics(f"epoch/{stage}", val_epoch_metrics)
             epoch_pbar.set_postfix_str(pbar_postfix)
 
-            logger.log_metrics(val_epoch_metrics, step=epoch)
+            logger.log_metrics(
+                {f"epoch/{stage}/{k}": v for k, v in val_epoch_metrics.items()},
+                step=epoch,
+            )
 
             scheduler.step(val_loss)
 
@@ -150,18 +157,38 @@ def train_model(
                 save_path_session=save_path_session,
                 exp=exp,
             )
+
+    preds = predict(
+        datamodule.predict_dataloader(),
+        module,
+        args.batch_size,
+        cfg.device,
+        args.do_plot_preds,
+        exp=exp,
+    )
+    torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
+
     exp.end()
 
 
-def predict(predict_dataloader, module, batch_size, device, do_plot_preds=False):
+@torch.no_grad()
+def predict(
+    predict_dataloader, module, batch_size, device, do_plot_preds=False, exp=None
+):
     preds = []
+    module.eval()
     module.to(device)
     for pred_batch in tqdm(predict_dataloader, desc="Predict Batches"):
         pred_batch = module.transfer_batch_to_device(pred_batch, device, 0)
         batch_preds = module.predict_step(pred_batch, 0, 0)
         preds.append(batch_preds)
         if do_plot_preds:
-            plot_preds(batch_size, pred_batch, batch_preds)
+            fig = plot_preds(batch_size, pred_batch, batch_preds)
+            if exp:
+                exp.log_figure("preds", fig)
+            if args.do_show_preds:
+                plt.show()
+            plt.close()
     return preds
 
 
@@ -175,7 +202,6 @@ def init_model(args):
 if __name__ == "__main__":
     args = parse_args()
 
-    model = build_model(args)
 
     datamodule = CityscapesDataModule(
         data_base_dir=cfg.data.data_dir,
@@ -185,23 +211,11 @@ if __name__ == "__main__":
     )
     datamodule.setup()
 
-    module = MTLModule(model=model, lr=args.lr)
-    if args.ckpt_dir:
-        module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
-    train_model(
+    module = init_model(args)
+    run_pipe(
         args,
         module,
-        datamodule.train_dataloader(),
-        datamodule.val_dataloader(),
+        datamodule,
         args.num_epochs,
         cfg.device,
-        benchmark_batch=datamodule.benchmark_batch,
-    )
-
-    preds = predict(
-        datamodule.predict_dataloader(),
-        module,
-        args.batch_size,
-        cfg.device,
-        args.do_plot_preds,
     )
