@@ -2,6 +2,7 @@
 The reason for this is that the Lightning module does not get optimized withe the PyTorch Lightning Trainer."""
 
 import os
+from collections import defaultdict
 
 import comet_ml
 import matplotlib.pyplot as plt
@@ -32,25 +33,9 @@ def run_pipe(
     datamodule: CityscapesDataModule,
     num_epochs,
     device,
+    exp: comet_ml.Experiment,
+    logger,
 ):
-    exp = create_tracking_exp(args)
-    if not args.exp_disabled:
-        args.run_name = exp.name
-    log_params_to_exp(
-        exp,
-        vars(args),
-        "args",
-    )
-    extra_tags = [args.model_name]
-    exp.add_tags(extra_tags)
-
-    log_subdir_name = f"training-{args.model_name}"
-    if args.run_name:
-        log_subdir_name += f"/{args.run_name}"
-    logger = TensorBoardLogger(cfg.log_root_dir, name=log_subdir_name)
-    os.makedirs(logger.log_dir, exist_ok=True)
-    log_args(args, f"{logger.log_dir}/train_args.yaml", exp=exp)
-
     global_step = 0
     val_step = 0
 
@@ -67,6 +52,10 @@ def run_pipe(
         benchmark_batch = module.transfer_batch_to_device(benchmark_batch, device, 0)
 
     epoch_pbar = tqdm(range(num_epochs), desc="Epochs")
+    epoch_metrics = {
+        "train": defaultdict(list),
+        "val": defaultdict(list),
+    }
 
     for epoch in epoch_pbar:
         print(f"### Epoch {epoch+1}/{num_epochs} ###")
@@ -75,7 +64,9 @@ def run_pipe(
 
         train_loss = 0
 
-        train_pbar = tqdm(datamodule.train_dataloader(), desc="Train Batches", leave=False)
+        train_pbar = tqdm(
+            datamodule.train_dataloader(), desc="Train Batches", leave=False
+        )
         for batch in train_pbar:
             optimizer.zero_grad()
             batch = module.transfer_batch_to_device(batch, device, 0)
@@ -94,6 +85,8 @@ def run_pipe(
             global_step += 1
 
         train_epoch_metrics = summarize_epoch_metrics(module.step_outputs[stage])
+        for k, v in train_epoch_metrics.items():
+            epoch_metrics[stage][k].append(v)
         pbar_postfix = print_metrics(f"epoch/{stage}", train_epoch_metrics)
         epoch_pbar.set_postfix_str(pbar_postfix)
         logger.log_metrics(
@@ -120,7 +113,9 @@ def run_pipe(
             val_loss = 0
 
             with torch.no_grad():
-                val_pbar = tqdm(datamodule.val_dataloader(), desc="Val Batches", leave=False)
+                val_pbar = tqdm(
+                    datamodule.val_dataloader(), desc="Val Batches", leave=False
+                )
                 for batch in val_pbar:
                     batch = module.transfer_batch_to_device(batch, device, 0)
                     loss = module.validation_step(batch, batch_idx=0)
@@ -135,6 +130,8 @@ def run_pipe(
                     val_step += 1
 
             val_epoch_metrics = summarize_epoch_metrics(module.step_outputs[stage])
+            for k, v in val_epoch_metrics.items():
+                epoch_metrics[stage][k].append(v)
             pbar_postfix = print_metrics(f"epoch/{stage}", val_epoch_metrics)
             epoch_pbar.set_postfix_str(pbar_postfix)
 
@@ -158,17 +155,9 @@ def run_pipe(
                 exp=exp,
             )
 
-    preds = predict(
-        datamodule.predict_dataloader(),
-        module,
-        args.batch_size,
-        cfg.device,
-        args.do_plot_preds,
-        exp=exp,
-    )
-    torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
-
     exp.end()
+
+    return epoch_metrics
 
 
 @torch.no_grad()
@@ -199,9 +188,9 @@ def init_model(args):
         module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
     return module
 
+
 if __name__ == "__main__":
     args = parse_args()
-
 
     datamodule = CityscapesDataModule(
         data_base_dir=cfg.data.data_dir,
@@ -212,10 +201,41 @@ if __name__ == "__main__":
     datamodule.setup()
 
     module = init_model(args)
+
+    exp = create_tracking_exp(args)
+    if not args.exp_disabled:
+        args.run_name = exp.name
+    log_params_to_exp(
+        exp,
+        vars(args),
+        "args",
+    )
+    extra_tags = [args.model_name]
+    exp.add_tags(extra_tags)
+
+    log_subdir_name = f"training-{args.model_name}"
+    if args.run_name:
+        log_subdir_name += f"/{args.run_name}"
+    logger = TensorBoardLogger(cfg.log_root_dir, name=log_subdir_name)
+    os.makedirs(logger.log_dir, exist_ok=True)
+    log_args(args, f"{logger.log_dir}/train_args.yaml", exp=exp)
+
     run_pipe(
         args,
         module,
         datamodule,
         args.num_epochs,
         cfg.device,
+        exp=exp,
+        logger=logger,
     )
+
+    preds = predict(
+        datamodule.predict_dataloader(),
+        module,
+        args.batch_size,
+        cfg.device,
+        args.do_plot_preds,
+        exp=exp,
+    )
+    torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
