@@ -150,6 +150,17 @@ def train_model(
                 save_path_session=save_path_session,
                 exp=exp,
             )
+
+    preds = predict(
+        datamodule.predict_dataloader(),
+        module,
+        args.batch_size,
+        cfg.device,
+        args.do_plot_preds,
+        exp=exp,
+    )
+    torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
+
     exp.end()
 
 
