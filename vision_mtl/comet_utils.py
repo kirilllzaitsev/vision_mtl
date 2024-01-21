@@ -6,6 +6,13 @@ from comet_ml.api import API
 
 root_dir = Path(__file__).parent.parent
 
+model_to_exp_name = {
+    "basic": "institutional_termite_879",
+    "basic_tuned": "sudden_redshift_9378",
+    "csnet": "noisy_reef_7986",
+    "mtan": "white_spice_5973",
+}
+
 
 def get_latest_ckpt_epoch(
     exp_name,
