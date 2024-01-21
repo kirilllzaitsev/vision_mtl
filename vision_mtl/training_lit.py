@@ -267,7 +267,7 @@ def create_tools(args):
         "args",
     )
     extra_tags = [args.model_name]
-    exp.add_tags(extra_tags)
+    exp.add_tags(extra_tags + args.exp_tags)
 
     log_subdir_name = f"training-{args.model_name}"
     if args.run_name:
