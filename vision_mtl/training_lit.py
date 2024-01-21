@@ -165,7 +165,13 @@ def run_pipe(
 
 @torch.no_grad()
 def predict(
-    predict_dataloader, module, batch_size, device, do_plot_preds=False, exp=None
+    predict_dataloader,
+    module,
+    batch_size,
+    device,
+    do_plot_preds=False,
+    exp=None,
+    do_show_preds=False,
 ):
     preds = []
     module.eval()
@@ -178,7 +184,7 @@ def predict(
             fig = plot_preds(batch_size, pred_batch, batch_preds)
             if exp:
                 exp.log_figure("preds", fig)
-            if args.do_show_preds:
+            if do_show_preds:
                 plt.show()
             plt.close()
     return preds
@@ -341,6 +347,6 @@ if __name__ == "__main__":
         cfg.device,
         args.do_plot_preds,
         exp=exp,
+        do_show_preds=args.do_show_preds,
     )
     torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
-        do_show_preds=args.do_show_preds,

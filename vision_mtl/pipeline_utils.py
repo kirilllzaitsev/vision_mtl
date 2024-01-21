@@ -152,8 +152,7 @@ def load_ckpt(ckpt_dir, epoch=None):
     return session_ckpt, model_ckpt
 
 
-def load_ckpt_model(ckpt_dir, epoch=None):
-    artifact_name_regex = r"model_(\d+).pt"
+def load_ckpt_model(ckpt_dir, epoch=None, artifact_name_regex=r"model_(\d+).pt"):
     if epoch is not None:
         artifact_name = f"model_{epoch}.pt"
     else:
