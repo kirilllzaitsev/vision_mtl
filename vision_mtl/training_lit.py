@@ -147,7 +147,7 @@ def run_pipe(
 
         if (epoch + 1) % args.save_epoch_freq == 0 or epoch == args.num_epochs - 1:
             save_path_model = os.path.join(logger.log_dir, f"model_{epoch}.pt")
-            save_path_session = os.path.join(logger.log_dir, "session.pt")
+            save_path_session = os.path.join(logger.log_dir, f"session_{epoch}.pt")
             save_ckpt(
                 module=module,
                 optimizer=optimizer,
