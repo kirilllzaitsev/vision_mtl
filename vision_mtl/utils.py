@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=5e-3)
     parser.add_argument("--loss_segm_weight", type=float, default=1)
     parser.add_argument("--loss_depth_weight", type=float, default=1)
+    parser.add_argument("--exp_tags", nargs="+", default=[])
     args, _ = parser.parse_known_args()
     return args
 
