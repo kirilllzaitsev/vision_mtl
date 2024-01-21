@@ -343,3 +343,4 @@ if __name__ == "__main__":
         exp=exp,
     )
     torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
+        do_show_preds=args.do_show_preds,
