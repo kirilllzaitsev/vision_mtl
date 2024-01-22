@@ -167,7 +167,6 @@ def run_pipe(
 def predict(
     predict_dataloader,
     module,
-    batch_size,
     device,
     do_plot_preds=False,
     exp=None,
@@ -181,13 +180,19 @@ def predict(
         batch_preds = module.predict_step(pred_batch, 0, 0)
         preds.append(batch_preds)
         if do_plot_preds:
+            if isinstance(pred_batch, dict):
+                batch_size = pred_batch["img"].shape[0]
+            else:
+                batch_size = len(pred_batch)
             fig = plot_preds(batch_size, pred_batch, batch_preds)
             if exp:
                 exp.log_figure("preds", fig)
             if do_show_preds:
                 plt.show()
             plt.close()
-    return preds
+    stage = "predict"
+    predict_metrics = summarize_epoch_metrics(module.step_outputs[stage])
+    return preds, predict_metrics
 
 
 def init_model(args):
@@ -340,10 +345,9 @@ if __name__ == "__main__":
         logger=logger,
     )
 
-    preds = predict(
+    preds, predict_metrics = predict(
         datamodule.predict_dataloader(),
         module,
-        args.batch_size,
         cfg.device,
         args.do_plot_preds,
         exp=exp,
