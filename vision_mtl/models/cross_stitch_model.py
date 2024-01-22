@@ -17,8 +17,8 @@ class CrossStitchLayer(nn.Module):
     def __init__(self, num_tasks, num_channels=None):
         super().__init__()
         self.num_tasks = num_tasks
-        self.channels_wise_stitching = num_channels is not None
-        if self.channels_wise_stitching:
+        self.channel_wise_stitching = num_channels is not None
+        if self.channel_wise_stitching:
             self.weights = nn.Parameter(
                 torch.Tensor(num_tasks, num_tasks, num_channels)
             )
@@ -31,7 +31,7 @@ class CrossStitchLayer(nn.Module):
         nn.init.uniform_(self.weights)
 
     def forward(self, mt_activations):
-        if self.channels_wise_stitching:
+        if self.channel_wise_stitching:
             y = torch.einsum("aac,abcij->abcij", self.weights, mt_activations)
         else:
             y = torch.einsum("aa,abcij->abcij", self.weights, mt_activations)
@@ -39,7 +39,7 @@ class CrossStitchLayer(nn.Module):
 
 
 class CSNet(nn.Module):
-    def __init__(self, models: dict, channels_wise_stitching=False):
+    def __init__(self, models: dict, channel_wise_stitching=False):
         """A meta-network that stitches together multiple models using cross-stitch units
         as means of sharing information in the multi-task setting.
         Args:
@@ -81,7 +81,7 @@ class CSNet(nn.Module):
         self.true_cross_stitch_layer_names = [
             layer_name for layer_name in self.joint_layer_names_before_stitch
         ]
-        if channels_wise_stitching:
+        if channel_wise_stitching:
             self.stitch_channels = self.get_stitch_channels(
                 random_model, self.joint_layer_names_before_stitch
             )
@@ -243,6 +243,6 @@ if __name__ == "__main__":
         "task2": get_model_with_dense_preds(segm_classes=1, activation=None),
         "task3": get_model_with_dense_preds(segm_classes=1, activation=None),
     }
-    cs_model = CSNet(models, channels_wise_stitching=True)
+    cs_model = CSNet(models, channel_wise_stitching=True)
     y_tasks = cs_model(x)
     print([y.shape for y in y_tasks.values()])
