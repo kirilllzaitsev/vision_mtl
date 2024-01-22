@@ -24,7 +24,8 @@ The chosen tasks are semantic segmentation and depth estimation. both tasks are 
 
 ### Environment
 
-- `python` >= 3.8
+- `python` >= 3.9
+- `conda create -n mtl python=3.9`
 - `pip install -r requirements.txt`
 
 ### Other

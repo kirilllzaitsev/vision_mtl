@@ -15,7 +15,7 @@ from vision_mtl.utils import get_module_by_name
 
 class CrossStitchLayer(nn.Module):
     def __init__(self, num_tasks, num_channels=None):
-        super(CrossStitchLayer, self).__init__()
+        super().__init__()
         self.num_tasks = num_tasks
         self.channels_wise_stitching = num_channels is not None
         if self.channels_wise_stitching:
