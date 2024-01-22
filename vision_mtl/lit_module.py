@@ -39,7 +39,7 @@ class MTLModule(pl.LightningModule):
                 "jaccard_index": [],
                 "fbeta_score": [],
             }
-            for k in ["train", "val", "test"]
+            for k in ["train", "val", "test", "predict"]
         }
 
         self.metrics = {
@@ -71,28 +71,14 @@ class MTLModule(pl.LightningModule):
     def shared_step(self, batch, stage: str) -> torch.Tensor:
         img, gt_mask, gt_depth = batch["img"], batch["mask"], batch["depth"]
 
-        out = self(img)
-        segm_logits = out["segm"]
-        depth_logits = out["depth"]
+        raw_out = self(img)
+        out = self.postprocess_raw_out(raw_out)
 
-        segm_pred_probs = F.softmax(input=segm_logits, dim=1)
-        segm_predictions = torch.argmax(segm_pred_probs, dim=1)
+        all_losses = self.calc_losses(gt_mask, gt_depth, out)
 
-        loss_segm = self.segm_criterion(segm_logits, gt_mask)
+        all_metrics = self.calc_metrics(gt_mask, out)
 
-        depth_predictions = F.sigmoid(input=depth_logits).permute(0, 2, 3, 1)
-        loss_depth = self.depth_criterion(depth_predictions, gt_depth)
-
-        loss = self.loss_segm_weight * loss_segm + self.loss_depth_weight * loss_depth
-
-        accuracy = self.metrics["accuracy"](segm_predictions, gt_mask)
-        jaccard_index = self.metrics["jaccard_index"](segm_predictions, gt_mask)
-        fbeta_score = self.metrics["fbeta_score"](segm_predictions, gt_mask)
-
-        self.step_outputs[stage]["loss"].append(loss)
-        self.step_outputs[stage]["accuracy"].append(accuracy)
-        self.step_outputs[stage]["jaccard_index"].append(jaccard_index)
-        self.step_outputs[stage]["fbeta_score"].append(fbeta_score)
+        self.update_step_stats(stage, all_losses, all_metrics)
         for k, v in self.step_outputs[stage].items():
             self.log(
                 f"{stage}_{k}",
@@ -102,7 +88,47 @@ class MTLModule(pl.LightningModule):
                 prog_bar=True,
                 logger=True,
             )
-        return loss
+        return all_losses["loss"]
+
+    def update_step_stats(self, stage, all_losses, all_metrics):
+        self.step_outputs[stage]["loss"].append(all_losses["loss"])
+        self.step_outputs[stage]["accuracy"].append(all_metrics["accuracy"])
+        self.step_outputs[stage]["jaccard_index"].append(all_metrics["jaccard_index"])
+        self.step_outputs[stage]["fbeta_score"].append(all_metrics["fbeta_score"])
+
+    def calc_metrics(self, gt_mask, out):
+        accuracy = self.metrics["accuracy"](out["segm_predictions"], gt_mask)
+        jaccard_index = self.metrics["jaccard_index"](out["segm_predictions"], gt_mask)
+        fbeta_score = self.metrics["fbeta_score"](out["segm_predictions"], gt_mask)
+        return {
+            "accuracy": accuracy,
+            "jaccard_index": jaccard_index,
+            "fbeta_score": fbeta_score,
+        }
+
+    def calc_losses(self, gt_mask, gt_depth, out):
+        loss_segm = self.segm_criterion(out["segm_logits"], gt_mask)
+        loss_depth = self.depth_criterion(out["depth_predictions"], gt_depth)
+
+        loss = self.loss_segm_weight * loss_segm + self.loss_depth_weight * loss_depth
+        return {
+            "loss": loss,
+            "loss_segm": loss_segm,
+            "loss_depth": loss_depth,
+        }
+
+    def postprocess_raw_out(self, out):
+        segm_logits = out["segm"]
+        depth_logits = out["depth"]
+
+        segm_pred_probs = F.softmax(input=segm_logits, dim=1)
+        segm_predictions = torch.argmax(segm_pred_probs, dim=1)
+        depth_predictions = F.sigmoid(input=depth_logits).permute(0, 2, 3, 1)
+        return {
+            "segm_logits": segm_logits,
+            "segm_predictions": segm_predictions,
+            "depth_predictions": depth_predictions,
+        }
 
     def training_step(self, batch: Any, batch_idx: Any):
         return self.shared_step(batch=batch, stage="train")
@@ -116,15 +142,17 @@ class MTLModule(pl.LightningModule):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0):
         img = batch["img"]
 
-        out = self.forward(img)
+        raw_out = self.forward(img)
 
-        segm_logits = out["segm"]
-        depth_logits = out["depth"]
+        out = self.postprocess_raw_out(raw_out)
 
-        segm_pred = F.softmax(input=segm_logits, dim=1)
-        segm_predictions = torch.argmax(segm_pred, dim=1)
-        depth_predictions = F.sigmoid(input=depth_logits).squeeze(1)
-        preds = {"segm": segm_predictions, "depth": depth_predictions}
+        if "mask" in batch and "depth" in batch:
+            gt_mask, gt_depth = batch["mask"], batch["depth"]
+            all_losses = self.calc_losses(gt_mask, gt_depth, out)
+            all_metrics = self.calc_metrics(gt_mask, out)
+            self.update_step_stats("predict", all_losses, all_metrics)
+
+        preds = {"segm": out["segm_predictions"], "depth": out["depth_predictions"]}
         return preds
 
     def shared_epoch_end(self, stage: Any):
