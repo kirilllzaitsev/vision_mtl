@@ -1,5 +1,6 @@
 import argparse
 import glob
+import numbers
 import os
 import re
 
@@ -73,10 +74,10 @@ def summarize_epoch_metrics(step_results):
         step_results[key].clear()
 
     metrics = {
-        "loss": loss,
-        "accuracy": accuracy,
-        "jaccard_index": jaccard_index,
-        "fbeta_score": fbeta_score,
+        "loss": loss.item(),
+        "accuracy": accuracy.item(),
+        "jaccard_index": jaccard_index.item(),
+        "fbeta_score": fbeta_score.item(),
     }
     return metrics
 
@@ -90,7 +91,10 @@ def print_metrics(prefix, train_epoch_metrics):
             else:
                 value = v.item()
         else:
-            value = v[-1]
+            if isinstance(v, numbers.Number):
+                value = v
+            else:
+                value = v[-1]
         print(f"{prefix}/{k}: {value:.3f} ")
         metrics_str += f"{k}: {value:.3f} "
     return metrics_str
