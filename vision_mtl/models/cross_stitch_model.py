@@ -51,7 +51,7 @@ class CSNet(nn.Module):
         self.num_tasks = len(models)
         # self.models = nn.ModuleList([BasicCNN(num_classes=num_classes) for _ in range(3)])
         self.model_names = list(models.keys())
-        self.models = models
+        self.models = nn.ModuleDict(models)
         # assuming all models have the same layers for simplicity
         random_model = self.models[self.model_names[0]]
         self.joint_layer_names = [x[0] for x in list(random_model.named_modules())[1:]]
