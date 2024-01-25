@@ -27,9 +27,9 @@ For the case of Cityscapes, the semantic segmentation task has 19 classes, while
 Sample input:
 
 - semantic segmentation
-![Alt text](cityscapes_segm_.png)
+![Alt text](assets/cityscapes_segm_.png)
 - depth estimation
-![Alt text](cityscapes_depth.png)
+![Alt text](assets/cityscapes_depth.png)
 
 ## Pre-requisites
 
