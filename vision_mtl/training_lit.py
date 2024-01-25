@@ -166,7 +166,7 @@ def run_pipe(
 @torch.no_grad()
 def predict(
     predict_dataloader,
-    module,
+    module: MTLModule,
     device,
     do_plot_preds=False,
     exp=None,
