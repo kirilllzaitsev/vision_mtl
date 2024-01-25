@@ -1,55 +1,23 @@
+import typing as t
+
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 from segmentation_models_pytorch.base import SegmentationHead
 
-
-class Backbone(nn.Module):
-    def __init__(
-        self,
-        encoder_name="timm-mobilenetv3_large_100",
-        encoder_weights="imagenet",
-        decoder_first_channel=256,
-        num_decoder_layers=5,
-        in_channels=3,
-    ):
-        super().__init__()
-
-        self.decoder_channels = [decoder_first_channel]
-        for i in range(1, num_decoder_layers):
-            self.decoder_channels.append(decoder_first_channel // (2**i))
-
-        model = smp.Unet(
-            encoder_name=encoder_name,
-            encoder_weights=encoder_weights,
-            in_channels=in_channels,
-            encoder_depth=len(self.decoder_channels),
-            decoder_channels=self.decoder_channels,
-        )
-
-        self.encoder = model.encoder
-        self.decoder = model.decoder
-
-    def forward(self, x):
-        """Sequentially pass `x` trough model`s encoder, decoder and heads"""
-
-        features = self.encoder(x)
-
-        decoder_output = self.decoder(*features)
-
-        return decoder_output
+from vision_mtl.models.model_utils import Backbone
 
 
 class BasicMTLModel(nn.Module):
     def __init__(
         self,
-        activation=None,
-        segm_classes=19,
-        encoder_name="timm-mobilenetv3_large_100",
-        encoder_weights="imagenet",
-        decoder_first_channel=256,
-        num_decoder_layers=5,
-        in_channels=3,
+        activation: t.Any = None,
+        segm_classes: int = 19,
+        encoder_name: str = "timm-mobilenetv3_large_100",
+        encoder_weights: str = "imagenet",
+        decoder_first_channel: int = 256,
+        num_decoder_layers: int = 5,
+        in_channels: int = 3,
     ):
         super().__init__()
 
@@ -73,7 +41,7 @@ class BasicMTLModel(nn.Module):
             kernel_size=3,
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
         decoder_output = self.backbone(x)
@@ -84,13 +52,13 @@ class BasicMTLModel(nn.Module):
         return dict(depth=depth, segm=segm)
 
     @torch.no_grad()
-    def predict(self, x):
+    def predict(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         if self.training:
             self.eval()
 
-        x = self.forward(x)
+        out = self.forward(x)
 
-        return x
+        return out
 
 
 if __name__ == "__main__":

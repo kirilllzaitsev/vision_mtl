@@ -1,4 +1,5 @@
 import logging
+import typing as t
 
 import torch
 from torch import nn
@@ -11,11 +12,11 @@ log = logging.getLogger(__name__)
 class AttentionModuleEncoder(nn.Module):
     def __init__(
         self,
-        shared_1_channels,
-        out_channels,
-        shared_2_channels,
-        prev_layer_out_channels=None,
-        hidden_channels=64,
+        shared_1_channels: int,
+        out_channels: int,
+        shared_2_channels: int,
+        prev_layer_out_channels: t.Optional[int] = None,
+        hidden_channels: int = 64,
     ):
         super().__init__()
 
@@ -47,7 +48,12 @@ class AttentionModuleEncoder(nn.Module):
         self.relu2 = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=2)
 
-    def forward(self, conv1_shared, conv2_shared, prev_layer_outs=None):
+    def forward(
+        self,
+        conv1_shared: torch.Tensor,
+        conv2_shared: torch.Tensor,
+        prev_layer_outs: t.Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         if self.is_first:
             conv1 = conv1_shared
         else:
@@ -80,11 +86,11 @@ class AttentionModuleEncoder(nn.Module):
 class AttentionModuleDecoder(nn.Module):
     def __init__(
         self,
-        shared_1_channels,
-        shared_2_channels,
-        prev_layer_out_channels,
-        out_channels,
-        hidden_channels=64,
+        shared_1_channels: int,
+        shared_2_channels: int,
+        prev_layer_out_channels: int,
+        out_channels: int,
+        hidden_channels: int = 64,
     ):
         super().__init__()
 
@@ -124,7 +130,12 @@ class AttentionModuleDecoder(nn.Module):
         self.bn_out = nn.BatchNorm2d(num_features=out_channels)
         self.relu_out = nn.ReLU()
 
-    def forward(self, conv1_shared, prev_layer_outs, conv2_shared):
+    def forward(
+        self,
+        conv1_shared: torch.Tensor,
+        prev_layer_outs: torch.Tensor,
+        conv2_shared: torch.Tensor,
+    ) -> torch.Tensor:
         prev_layer_outs = self.conv3(prev_layer_outs)
         prev_layer_outs = self.bn3(prev_layer_outs)
         prev_layer_outs = self.relu2(prev_layer_outs)
@@ -163,17 +174,19 @@ class MTANDown(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
+        in_channels: int,
+        out_channels: int,
         task_attn_modules: list[AttentionModuleEncoder],
-        apply_pool=True,
+        apply_pool: bool = True,
     ):
         super().__init__()
         self.dconv = DoubleConv(in_channels, out_channels)
         self.pool = nn.MaxPool2d(2) if apply_pool else nn.Identity()
         self.task_attn_modules = task_attn_modules
 
-    def forward(self, x, prev_layer_outs=None):
+    def forward(
+        self, x: torch.Tensor, prev_layer_outs: t.Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
         dconv_out = self.dconv(x)
         task_attn_outs = []
         for i, task_attn_module in enumerate(self.task_attn_modules):
@@ -193,8 +206,8 @@ class MTANUp(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
+        in_channels: int,
+        out_channels: int,
         task_attn_modules: list[AttentionModuleDecoder],
     ):
         super().__init__()
@@ -206,7 +219,12 @@ class MTANUp(nn.Module):
         self.out_channels = out_channels
         self.in_channels = in_channels
 
-    def forward(self, x1, x2, task_attn_prev_outs):
+    def forward(
+        self,
+        x1: torch.Tensor,
+        x2: torch.Tensor,
+        task_attn_prev_outs: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
         x1 = self.up(x1)
         merged_enc_dec = concat_slightly_diff_sized_tensors(x1, x2)
         conv_out = self.conv(merged_enc_dec)
@@ -228,11 +246,11 @@ class MTANUp(nn.Module):
 class MTANMiniUnet(nn.Module):
     def __init__(
         self,
-        in_channels,
-        map_tasks_to_num_channels,
-        task_subnets_hidden_channels=128,
-        encoder_first_channel=64,
-        encoder_num_channels=4,
+        in_channels: int,
+        map_tasks_to_num_channels: dict[str, int],
+        task_subnets_hidden_channels: int = 128,
+        encoder_first_channel: int = 64,
+        encoder_num_channels: int = 4,
     ):
         super().__init__()
 
@@ -357,7 +375,7 @@ class MTANMiniUnet(nn.Module):
             }
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         task_attn_outs_enc = None
         encoder = x
         encoder_features = []

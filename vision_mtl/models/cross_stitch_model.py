@@ -1,11 +1,10 @@
 import re
+import typing as t
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from segmentation_models_pytorch.base import SegmentationHead
 
-from vision_mtl.models.basic_model import Backbone
 from vision_mtl.models.model_utils import (
     concat_slightly_diff_sized_tensors,
     get_joint_layer_names_before_stitch_for_unet,
@@ -14,7 +13,7 @@ from vision_mtl.utils import get_module_by_name
 
 
 class CrossStitchLayer(nn.Module):
-    def __init__(self, num_tasks, num_channels=None):
+    def __init__(self, num_tasks: int, num_channels: t.Optional[int] = None):
         super().__init__()
         self.num_tasks = num_tasks
         self.channel_wise_stitching = num_channels is not None
@@ -30,7 +29,7 @@ class CrossStitchLayer(nn.Module):
     def reset_parameters(self):
         nn.init.uniform_(self.weights)
 
-    def forward(self, mt_activations):
+    def forward(self, mt_activations: torch.Tensor) -> torch.Tensor:
         if self.channel_wise_stitching:
             y = torch.einsum("aac,abcij->abcij", self.weights, mt_activations)
         else:
@@ -39,7 +38,7 @@ class CrossStitchLayer(nn.Module):
 
 
 class CSNet(nn.Module):
-    def __init__(self, models: dict, channel_wise_stitching=False):
+    def __init__(self, models: dict, channel_wise_stitching: bool = False):
         """A meta-network that stitches together multiple models using cross-stitch units
         as means of sharing information in the multi-task setting.
         Args:
@@ -49,7 +48,6 @@ class CSNet(nn.Module):
         self.encoder_block_regex = r"0.encoder.model.blocks.(\d+)$"
         self.decoder_block_regex = r"0.decoder.blocks.(\d+)$"
         self.num_tasks = len(models)
-        # self.models = nn.ModuleList([BasicCNN(num_classes=num_classes) for _ in range(3)])
         self.model_names = list(models.keys())
         self.models = nn.ModuleDict(models)
         # assuming all models have the same layers for simplicity
@@ -124,7 +122,9 @@ class CSNet(nn.Module):
         else:
             super().to(device)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> dict:
+        """Forward pass. Returns a map task_name -> output tensor."""
+
         model_features = {task_name: x.clone() for task_name in self.model_names}
         layers_applied = []
         encoder_features = {task_name: [] for task_name in self.model_names}
@@ -179,17 +179,23 @@ class CSNet(nn.Module):
                 }
         return model_features
 
-    def consider_encoder_layer_at_idx(self, layer_idx):
+    def consider_encoder_layer_at_idx(self, layer_idx: int) -> bool:
+        """Returns True if the encoder layer at the given index should be taken for stitching."""
         return (
             layer_idx != 0
             and layer_idx != self.num_encoder_layers - 1
             and layer_idx != self.num_decoder_layers - 1
         )
 
-    def consider_decoder_layer_at_idx(self, layer_idx):
+    def consider_decoder_layer_at_idx(self, layer_idx: int) -> bool:
+        """Returns True if the decoder layer at the given index should be taken for stitching."""
         return layer_idx != self.num_decoder_layers - 1
 
-    def get_stitch_channels(self, random_model, joint_layer_names_before_stitch):
+    def get_stitch_channels(
+        self, random_model: nn.Module, joint_layer_names_before_stitch: list[str]
+    ) -> list[int]:
+        """Returns the number of channels in the layers that are stitched together."""
+
         stitch_channels = []
         encoder_channels = []
         for stitch_layer_name in joint_layer_names_before_stitch:
@@ -197,13 +203,10 @@ class CSNet(nn.Module):
             for i, (layer_name, params) in enumerate(named_modules):
                 if layer_name == stitch_layer_name:
                     last_conv_layer_idx = i - 1
-                    # while "conv" not in named_modules[last_conv_layer_idx][0]:
                     while not isinstance(
                         named_modules[last_conv_layer_idx][1], nn.Conv2d
                     ):
                         last_conv_layer_idx -= 1
-                    # print(f"{named_modules[last_conv_layer_idx][0]=}")
-                    # print(layer_name, named_modules[last_conv_layer_idx][1].out_channels)
                     num_channels = named_modules[last_conv_layer_idx][1].out_channels
                     if "encoder" in layer_name:
                         layer_idx = int(
@@ -218,24 +221,12 @@ class CSNet(nn.Module):
                         if self.consider_decoder_layer_at_idx(layer_idx):
                             num_channels += encoder_channels[-layer_idx - 1]
                     stitch_channels.append(num_channels)
-                    # break
         return stitch_channels
 
 
-def get_model_with_dense_preds(segm_classes=10, activation=None, backbone_params=None):
-    backbone_params = backbone_params or {}
-    backbone = Backbone(in_channels=3, **backbone_params)
-    head = SegmentationHead(
-        in_channels=backbone.decoder_channels[-1],
-        out_channels=segm_classes,
-        activation=activation,
-        kernel_size=3,
-    )
-    model = nn.Sequential(backbone, head)
-    return model
-
-
 if __name__ == "__main__":
+    from vision_mtl.models.model_utils import get_model_with_dense_preds
+
     x = torch.randn(2, 3, 224, 224)
     num_classes = 10
     models = {
