@@ -17,7 +17,15 @@ from vision_mtl.models.mtan_model import MTANMiniUnet
 def build_model(args):
     if args.model_name == "basic":
         # basic
-        model = BasicMTLModel(decoder_first_channel=540, num_decoder_layers=5)
+        model = BasicMTLModel(
+            decoder_first_channel=540,
+            num_decoder_layers=5,
+            encoder_weights=getattr(
+                args,
+                "backbone_weights",
+                "imagenet",
+            ),
+        )
     elif args.model_name == "mtan":
         # MTAN
         map_tasks_to_num_channels = {
