@@ -95,15 +95,18 @@ class MTLModule(pl.LightningModule):
         self.step_outputs[stage]["accuracy"].append(all_metrics["accuracy"])
         self.step_outputs[stage]["jaccard_index"].append(all_metrics["jaccard_index"])
         self.step_outputs[stage]["fbeta_score"].append(all_metrics["fbeta_score"])
+        self.step_outputs[stage]["mae"].append(all_metrics["mae"])
 
-    def calc_metrics(self, gt_mask, out):
+    def calc_metrics(self, gt_mask, gt_depth, out):
         accuracy = self.metrics["accuracy"](out["segm_predictions"], gt_mask)
         jaccard_index = self.metrics["jaccard_index"](out["segm_predictions"], gt_mask)
         fbeta_score = self.metrics["fbeta_score"](out["segm_predictions"], gt_mask)
+        mae = self.metrics["mae"](out["depth_predictions"], gt_depth)
         return {
             "accuracy": accuracy,
             "jaccard_index": jaccard_index,
             "fbeta_score": fbeta_score,
+            "mae": mae,
         }
 
     def calc_losses(self, gt_mask, gt_depth, out):
