@@ -49,7 +49,10 @@ def build_model(args):
                 backbone_params=backbone_params,
             ),
         }
-        model = CSNet(models, channel_wise_stitching=args.channel_wise_stitching)
+        model = CSNet(
+            models,
+            channel_wise_stitching=getattr(args, "channel_wise_stitching", True),
+        )
     else:
         raise NotImplementedError(f"Unknown model name: {args.model_name}")
     return model
