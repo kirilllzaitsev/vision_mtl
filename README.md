@@ -18,14 +18,25 @@ The models are trained and evaluated on the following datasets:
 - [Cityscapes](https://www.cityscapes-dataset.com/) downloaded from [here](https://www.kaggle.com/datasets/sakshaymahna/cityscapes-depth-and-segmentation/data)
 - [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from [here](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 
-The chosen tasks are semantic segmentation and depth estimation. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label, while depth estimation is a pixel-wise regression problem, where each pixel is assigned a depth value. For the case of Cityscapes, the semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1].
+The chosen tasks are semantic segmentation and depth estimation. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label, while depth estimation is a pixel-wise regression problem, where each pixel is assigned a depth value.
+
+### Cityscapes
+
+For the case of Cityscapes, the semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1].
+
+Sample input:
+
+- semantic segmentation
+![Alt text](cityscapes_segm_.png)
+- depth estimation
+![Alt text](cityscapes_depth.png)
 
 ## Pre-requisites
 
 ### Environment
 
-- `python` >= 3.9
-- `conda create -n mtl python=3.9`
+- python >= 3.9
+- (optional) `conda create -n mtl python=3.9`
 - `pip install -r requirements.txt`
 
 ### Other
@@ -43,7 +54,7 @@ comet_username=your_comet_username
 
 ### Training
 
-The models are implemented in PyTorch. They are trained and evaluated on the task of semantic segmentation and depth estimation. A single GPU with 8Gb of memory is used for the experiments.
+The models are implemented in PyTorch. They are trained and evaluated on the task of semantic segmentation and depth estimation. A single GPU with 8Gb of memory is used for the experiments. The models are wrapped in the module from PyTorch Lightning, but due to this [issue](https://github.com/Lightning-AI/pytorch-lightning/issues/19216) optimization loop is manual instead of using the `Trainer` from this library.
 
 Entry point for the pipeline is `training_lit.py`. `utils.py` contains arguments for the command line.
 
