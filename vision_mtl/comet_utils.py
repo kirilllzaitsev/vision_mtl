@@ -7,6 +7,7 @@ from comet_ml.api import API
 root_dir = Path(__file__).parent.parent
 
 model_to_exp_name = {
+    "basic_non_pretrained": "supreme_dog_1028",
     "basic": "institutional_termite_879",
     "basic_tuned": "sudden_redshift_9378",
     "csnet": "administrative_omega_4076",
