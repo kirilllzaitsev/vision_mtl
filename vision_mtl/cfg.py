@@ -1,3 +1,5 @@
+"""Contains utility classes to control the pipeline."""
+
 import os
 from pathlib import Path
 
@@ -5,6 +7,7 @@ import numpy as np
 from dotenv import load_dotenv
 from omegaconf import MISSING
 
+# sensitive data goes to the .env file not shared in the repository
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 
 
@@ -99,7 +102,6 @@ class PipelineConfig:
     logger: LoggerConfig = LoggerConfig()
     vis: VisConfig = VisConfig()
 
-    # device: str = "cpu"
     device: str = "cuda"
 
     debug: bool = False

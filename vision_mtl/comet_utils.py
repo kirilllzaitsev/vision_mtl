@@ -1,5 +1,6 @@
 import os
 import re
+import typing as t
 from pathlib import Path
 
 from comet_ml.api import API
@@ -16,10 +17,12 @@ model_to_exp_name = {
 
 
 def get_latest_ckpt_epoch(
-    exp_name,
-    model_name_regex=r"model_(\d+)\.pt*",
-    project_name="vision-mtl",
-):
+    exp_name: str,
+    model_name_regex: str = r"model_(\d+)\.pt*",
+    project_name: str = "vision-mtl",
+) -> int:
+    """Get the latest checkpoint epoch number from a Comet experiment by applying the model_name_regex to the experiment's assets."""
+
     api = API(api_key=os.environ["COMET_API_KEY"])
     exp_api = api.get(f"kirilllzaitsev/{project_name}/{exp_name}")
     ckpt_epochs = [
@@ -31,15 +34,17 @@ def get_latest_ckpt_epoch(
 
 
 def load_artifacts_from_comet(
-    exp_name,
-    local_artifacts_dir,
-    model_artifact_name,
-    args_name_no_ext="train_args",
-    session_artifact_name=None,
-    project_name="vision-mtl",
-    api=None,
-    epoch=None,
-):
+    exp_name: str,
+    local_artifacts_dir: str,
+    model_artifact_name: str,
+    args_name_no_ext: str = "train_args",
+    session_artifact_name: str = None,
+    project_name: str = "vision-mtl",
+    api: t.Optional[API] = None,
+    epoch: t.Optional[int] = None,
+) -> dict:
+    """Load model, args, and session checkpoints from a Comet experiment."""
+
     include_session = session_artifact_name is not None
     args_file_path = os.path.join(local_artifacts_dir, f"{args_name_no_ext}.yaml")
 

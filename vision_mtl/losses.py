@@ -1,15 +1,26 @@
+import typing as t
+
 import torch
 import torch.nn as nn
 
 
 class SILogLoss(nn.Module):
-    """Following AdaBins"""
+    """Based on the AdaBins implementation at https://github.com/shariqfarooq123/AdaBins/blob/main/loss.py"""
 
-    def __init__(self):
-        super(SILogLoss, self).__init__()
-        self.name = "SILog"
+    def __init__(self, min_depth: float = 1e-3):
+        super().__init__()
+        self.min_depth = min_depth
 
-    def forward(self, pred, target, mask=None, interpolate=False, min_depth=1e-3):
+    def forward(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+        mask: t.Optional[torch.Tensor] = None,
+        interpolate: bool = True,
+        min_depth: t.Optional[float] = None,
+    ) -> torch.Tensor:
+        if min_depth is None:
+            min_depth = self.min_depth
         if interpolate:
             pred = nn.functional.interpolate(
                 pred, target.shape[-2:], mode="bilinear", align_corners=True
@@ -21,9 +32,5 @@ class SILogLoss(nn.Module):
         pred = pred[mask]
         target = target[mask]
         g = torch.log(pred) - torch.log(target)
-        # n, c, h, w = g.shape
-        # norm = 1/(h*w)
-        # Dg = norm * torch.sum(g**2) - (0.85/(norm**2)) * (torch.sum(g))**2
-
         Dg = torch.var(g) + 0.15 * torch.pow(torch.mean(g), 2)
         return 10 * torch.sqrt(Dg)

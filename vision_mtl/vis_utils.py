@@ -1,11 +1,14 @@
+import typing as t
+
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from matplotlib.patches import Rectangle
 
 from vision_mtl.cfg import cfg
 
 
-def plot_batch(batch):
+def plot_batch(batch: dict) -> plt.Figure:
     batch_size = len(batch["img"])
     ncols = 3
     fig, axs = plt.subplots(batch_size, 3, figsize=(batch_size * 5, ncols * 2))
@@ -15,10 +18,10 @@ def plot_batch(batch):
         if i != batch_size - 1:
             for ax in sample_axs:
                 ax.axis("off")
-    plt.show()
+    return fig
 
 
-def plot_sample(x, axs=None):
+def plot_sample(x: dict, axs: t.Optional[np.ndarray] = None) -> np.ndarray:
     if axs is None:
         fig, axs = plt.subplots(1, len(x), figsize=(10, 10))
     for i, (k, v) in enumerate(x.items()):
@@ -33,14 +36,20 @@ def plot_sample(x, axs=None):
     return axs
 
 
-def plot_segm_class(idx, mask):
+def plot_segm_class(idx: int, mask: np.ndarray) -> np.ndarray:
     empty_canvas = np.zeros((*mask.shape, 3)).astype(np.uint8)
     empty_canvas[mask == idx, ...] = 255
     print(empty_canvas.max(), empty_canvas.min())
     plt.imshow(empty_canvas)
+    return empty_canvas
 
 
-def plot_annotated_segm_mask(mask, class_names=None, img=None, alpha=1.0):
+def plot_annotated_segm_mask(
+    mask: np.ndarray,
+    class_names: t.Optional[list] = None,
+    img: t.Optional[t.Union[np.ndarray, torch.Tensor]] = None,
+    alpha: float = 1.0,
+) -> plt.Figure:
     if not isinstance(mask, np.ndarray):
         mask = mask.numpy()
 
@@ -71,10 +80,10 @@ def plot_annotated_segm_mask(mask, class_names=None, img=None, alpha=1.0):
         ax.imshow(img)
     plt.imshow(remap_class_idx_to_rgb(mask, colored_rgb_palette), alpha=alpha)
     plt.legend(handles, labels)
-    plt.show()
+    return fig
 
 
-def plot_annotated_segm_mask_v1(mask, class_names):
+def plot_annotated_segm_mask_v1(mask: np.ndarray, class_names: list) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.imshow(mask)
     for idx, class_name in [(-1, "artifact"), *enumerate(class_names)]:
@@ -85,10 +94,10 @@ def plot_annotated_segm_mask_v1(mask, class_names):
         y = y.mean()
         x = x.mean()
         ax.text(x, y, class_name, fontsize=16, color="white")
-    plt.show()
+    return fig
 
 
-def plot_preds(batch_size, inputs_batch, preds_batch):
+def plot_preds(batch_size: int, inputs_batch: dict, preds_batch: dict) -> plt.Figure:
     ncols = 1 + 2 + 2
     fig, ax = plt.subplots(batch_size, ncols, figsize=(10, ncols * batch_size))
     for row_idx in range(batch_size):
@@ -127,11 +136,10 @@ def plot_preds(batch_size, inputs_batch, preds_batch):
             ax_.axis("off")
 
         ax_0.set_ylabel(f"Sample {row_idx}")
-    # break
     return fig
 
 
-def convert_figure_to_image(fig):
+def convert_figure_to_image(fig: plt.Figure) -> np.ndarray:
     fig.canvas.draw()
     image = np.array(fig.canvas.renderer.buffer_rgba())
     return image

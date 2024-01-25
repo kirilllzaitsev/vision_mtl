@@ -1,3 +1,4 @@
+import typing as t
 from typing import Union
 
 import albumentations as A
@@ -36,7 +37,7 @@ class CityscapesDataModule(pl.LightningDataModule):
         self.test_transform = test_transform
         self.save_hyperparameters()
 
-    def setup(self, stage: str = None) -> None:
+    def setup(self, stage: t.Optional[str] = None) -> None:
         data_train = CityscapesDataset(
             stage="train",
             data_base_dir=self.data_base_dir,

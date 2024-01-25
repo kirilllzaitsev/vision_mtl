@@ -3,6 +3,7 @@ import glob
 import numbers
 import os
 import re
+import typing as t
 
 import comet_ml
 import torch
@@ -10,11 +11,16 @@ import yaml
 
 from vision_mtl.cfg import cfg
 from vision_mtl.models.basic_model import BasicMTLModel
-from vision_mtl.models.cross_stitch_model import CSNet, get_model_with_dense_preds
+from vision_mtl.models.cross_stitch_model import CSNet
+from vision_mtl.models.model_utils import get_model_with_dense_preds
 from vision_mtl.models.mtan_model import MTANMiniUnet
 
 
-def build_model(args):
+def build_model(
+    args: argparse.Namespace,
+) -> t.Union[BasicMTLModel, MTANMiniUnet, CSNet]:
+    """Instantiate a model based on the args."""
+
     if args.model_name == "basic":
         # basic
         model = BasicMTLModel(
@@ -66,7 +72,9 @@ def build_model(args):
     return model
 
 
-def summarize_epoch_metrics(step_results, metric_name_prefix=None):
+def summarize_epoch_metrics(
+    step_results: dict, metric_name_prefix: t.Optional[str] = None
+) -> dict:
     if metric_name_prefix is None:
         metric_name_prefix = ""
     else:
@@ -82,7 +90,9 @@ def summarize_epoch_metrics(step_results, metric_name_prefix=None):
     return metrics
 
 
-def print_metrics(prefix, train_epoch_metrics):
+def print_metrics(prefix: str, train_epoch_metrics: dict) -> str:
+    """Assemble a string out of the metrics and print it."""
+
     metrics_str = ""
     for k, v in train_epoch_metrics.items():
         if isinstance(v, torch.Tensor):
@@ -101,8 +111,16 @@ def print_metrics(prefix, train_epoch_metrics):
 
 
 def save_ckpt(
-    module, optimizer, scheduler, epoch, save_path_model, save_path_session, exp=None
-):
+    module: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
+    epoch: int,
+    save_path_model: str,
+    save_path_session: str,
+    exp: t.Optional[comet_ml.Experiment] = None,
+) -> None:
+    """Save model and session checkpoints locally and to Comet."""
+
     torch.save(
         {
             "model": module.state_dict(),
@@ -123,20 +141,30 @@ def save_ckpt(
     print(f"Saved model to {save_path_model}")
 
 
-def log_params_to_exp(experiment, params: dict, prefix: str):
+def log_params_to_exp(
+    experiment: comet_ml.Experiment, params: dict, prefix: str
+) -> None:
     experiment.log_parameters({f"{prefix}/{str(k)}": v for k, v in params.items()})
 
 
-def log_ckpt_to_exp(experiment, ckpt_path: str, model_name):
+def log_ckpt_to_exp(
+    experiment: comet_ml.Experiment, ckpt_path: str, model_name: str
+) -> None:
     experiment.log_model(model_name, ckpt_path, overwrite=False)
 
 
-def log_args(args, save_path, exp=None):
+def log_args(
+    args: argparse.Namespace,
+    save_path: str,
+    exp: t.Optional[comet_ml.Experiment] = None,
+) -> None:
     if isinstance(args, argparse.Namespace):
-        args = vars(args)
+        args_map = vars(args)
+    else:
+        args_map = args
     with open(save_path, "w") as f:
         yaml.dump(
-            {"args": args},
+            {"args": args_map},
             f,
             default_flow_style=False,
         )
@@ -144,19 +172,28 @@ def log_args(args, save_path, exp=None):
         exp.log_asset(save_path)
 
 
-def load_args(load_path):
+def load_args(load_path: str) -> argparse.Namespace:
     with open(load_path, "r") as f:
         args = yaml.load(f, Loader=yaml.FullLoader)["args"]
     return argparse.Namespace(**args)
 
 
-def load_ckpt(ckpt_dir, epoch=None):
+def load_ckpt(ckpt_dir: str, epoch: t.Optional[int] = None) -> t.Tuple:
+    """Load a checkpoint from a directory.
+    Returns:
+        A tuple of (session_ckpt, model_ckpt), where session_ckpt refers to the optimizer and scheduler state, and model_ckpt refers to the model state.
+    """
     session_ckpt = load_ckpt_session(ckpt_dir)
     session_ckpt, model_ckpt = load_ckpt_model(ckpt_dir, epoch=epoch)
     return session_ckpt, model_ckpt
 
 
-def load_ckpt_model(ckpt_dir, epoch=None, artifact_name_regex=r"model_(\d+).pt"):
+def load_ckpt_model(
+    ckpt_dir: str,
+    epoch: t.Optional[int] = None,
+    artifact_name_regex: str = r"model_(\d+).pt",
+) -> t.Any:
+    """Load a model checkpoint from a directory based on the epoch number. The epoch number is parsed from the artifact name using the artifact_name_regex."""
     if epoch is not None:
         artifact_name = f"model_{epoch}.pt"
     else:
@@ -175,15 +212,20 @@ def load_ckpt_model(ckpt_dir, epoch=None, artifact_name_regex=r"model_(\d+).pt")
     return model_ckpt
 
 
-def load_ckpt_session(ckpt_dir):
-    session_ckpt_path = os.path.join(ckpt_dir, "session.pt")
+def load_ckpt_session(ckpt_dir: str, filename="session.pt") -> t.Any:
+    session_ckpt_path = os.path.join(ckpt_dir, filename)
     session_ckpt = torch.load(session_ckpt_path)
     return session_ckpt
 
 
 def create_tracking_exp(
-    args, exp_disabled=True, force_disabled=False, project_name=cfg.logger.project_name
+    args: argparse.Namespace,
+    exp_disabled: bool = True,
+    force_disabled: bool = False,
+    project_name: str = cfg.logger.project_name,
 ) -> comet_ml.Experiment:
+    """Creates an experiment on Comet and logs all the code in the current directory."""
+
     exp_init_args = dict(
         api_key=cfg.logger.api_key,
         auto_output_logging="simple",

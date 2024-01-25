@@ -1,3 +1,4 @@
+import typing as t
 from typing import Any
 
 import pytorch_lightning as pl
@@ -16,12 +17,12 @@ class MTLModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        optim_dict: dict = None,
-        lr: float = None,
+        optim_dict: t.Optional[dict] = None,
+        lr: t.Optional[float] = None,
         num_classes: int = cfg.data.num_classes,
         device: str = cfg.device,
-        loss_segm_weight=1,
-        loss_depth_weight=1,
+        loss_segm_weight: float = 1.0,
+        loss_depth_weight: float = 1.0,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
@@ -68,10 +69,10 @@ class MTLModule(pl.LightningModule):
         }
         self.automatic_optimization = False
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
-    def shared_step(self, batch, stage: str) -> torch.Tensor:
+    def shared_step(self, batch: dict, stage: str) -> torch.Tensor:
         img, gt_mask, gt_depth = batch["img"], batch["mask"], batch["depth"]
 
         raw_out = self(img)
@@ -93,14 +94,18 @@ class MTLModule(pl.LightningModule):
             )
         return all_losses["loss"]
 
-    def update_step_stats(self, stage, all_losses, all_metrics):
+    def update_step_stats(
+        self, stage: str, all_losses: dict, all_metrics: dict
+    ) -> None:
         self.step_outputs[stage]["loss"].append(all_losses["loss"])
         self.step_outputs[stage]["accuracy"].append(all_metrics["accuracy"])
         self.step_outputs[stage]["jaccard_index"].append(all_metrics["jaccard_index"])
         self.step_outputs[stage]["fbeta_score"].append(all_metrics["fbeta_score"])
         self.step_outputs[stage]["mae"].append(all_metrics["mae"])
 
-    def calc_metrics(self, gt_mask, gt_depth, out):
+    def calc_metrics(
+        self, gt_mask: torch.Tensor, gt_depth: torch.Tensor, out: dict
+    ) -> dict:
         accuracy = self.metrics["accuracy"](out["segm_predictions"], gt_mask)
         jaccard_index = self.metrics["jaccard_index"](out["segm_predictions"], gt_mask)
         fbeta_score = self.metrics["fbeta_score"](out["segm_predictions"], gt_mask)
@@ -112,7 +117,9 @@ class MTLModule(pl.LightningModule):
             "mae": mae,
         }
 
-    def calc_losses(self, gt_mask, gt_depth, out):
+    def calc_losses(
+        self, gt_mask: torch.Tensor, gt_depth: torch.Tensor, out: dict
+    ) -> dict:
         loss_segm = self.segm_criterion(out["segm_logits"], gt_mask)
         loss_depth = self.depth_criterion(out["depth_predictions"], gt_depth)
 
@@ -123,7 +130,7 @@ class MTLModule(pl.LightningModule):
             "loss_depth": loss_depth,
         }
 
-    def postprocess_raw_out(self, out):
+    def postprocess_raw_out(self, out: dict) -> dict:
         segm_logits = out["segm"]
         depth_logits = out["depth"]
 
@@ -136,16 +143,16 @@ class MTLModule(pl.LightningModule):
             "depth_predictions": depth_predictions,
         }
 
-    def training_step(self, batch: Any, batch_idx: Any):
+    def training_step(self, batch: dict, batch_idx: Any):
         return self.shared_step(batch=batch, stage="train")
 
-    def validation_step(self, batch: Any, batch_idx: Any):
+    def validation_step(self, batch: dict, batch_idx: Any):
         return self.shared_step(batch=batch, stage="val")
 
-    def test_step(self, batch: Any, batch_idx: Any):
+    def test_step(self, batch: dict, batch_idx: Any):
         return self.shared_step(batch=batch, stage="test")
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0):
+    def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         img = batch["img"]
 
         raw_out = self.forward(img)
@@ -197,7 +204,9 @@ class MTLModule(pl.LightningModule):
         }
         return self.optim_dict if self.optim_dict else optimization_dictionary
 
-    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+    def transfer_batch_to_device(
+        self, batch: dict, device: t.Union[str, torch.device], dataloader_idx: int = 0
+    ):
         if isinstance(batch, dict):
             for key in batch.keys():
                 batch[key] = batch[key].to(device)
@@ -237,4 +246,3 @@ if __name__ == "__main__":
         "depth": torch.randn(batch_size, 128, 256).to(cfg.device),
     }
     module.training_step(sample_batch, 0)
-    # print(out["segm"].shape)

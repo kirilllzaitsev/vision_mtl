@@ -1,15 +1,21 @@
 """This module trains the Lightning module in a standard way, i.e., with a vanilla PyTorch training loop.
 The reason for this is that the Lightning module does not get optimized withe the PyTorch Lightning Trainer."""
 
+import argparse
 import copy
 import functools
 import os
 from collections import defaultdict
 
+import optuna
+from optuna.trial import TrialState
+
 if os.environ.get("DISPLAY") != ":0":
     import matplotlib
 
     matplotlib.use("Agg")
+
+import typing as t
 
 import comet_ml
 import matplotlib.pyplot as plt
@@ -36,14 +42,16 @@ from vision_mtl.vis_utils import plot_preds
 
 
 def run_pipe(
-    args,
+    args: argparse.Namespace,
     module: MTLModule,
     datamodule: CityscapesDataModule,
-    num_epochs,
-    device,
+    num_epochs: int,
+    device: t.Union[str, torch.device],
     exp: comet_ml.Experiment,
-    logger,
-):
+    logger: TensorBoardLogger,
+) -> t.Dict[str, t.Dict[str, float]]:
+    """Run the training loop for num_epochs and return metrics from training and validation epochs."""
+
     global_step = 0
     val_step = 0
 
@@ -170,13 +178,15 @@ def run_pipe(
 
 @torch.no_grad()
 def predict(
-    predict_dataloader,
+    predict_dataloader: torch.utils.data.DataLoader,
     module: MTLModule,
-    device,
-    do_plot_preds=False,
-    exp=None,
-    do_show_preds=False,
+    device: t.Union[str, torch.device],
+    do_plot_preds: bool = False,
+    exp: t.Optional[comet_ml.Experiment] = None,
+    do_show_preds: bool = False,
 ):
+    """Predict on the predict_dataloader and return the predictions and metrics."""
+
     preds = []
     module.eval()
     module.to(device)
@@ -200,7 +210,8 @@ def predict(
     return preds, predict_metrics
 
 
-def init_model(args):
+def init_model(args: argparse.Namespace) -> MTLModule:
+    """Initialize model and load checkpoint if specified in args."""
     model = build_model(args)
     module = MTLModule(model=model, lr=args.lr)
     if args.ckpt_dir:
@@ -208,7 +219,8 @@ def init_model(args):
     return module
 
 
-def optuna_objective(trial, args):
+def optuna_objective(trial: optuna.Trial, args: argparse.Namespace) -> float:
+    """Optuna objective function that is evaluated at each trial. Returns the validation accuracy."""
     param_keys = ["loss_segm_weight", "loss_depth_weight"]
     loss_weights = {k: trial.suggest_float(k, 0.0, 1.0) for k in param_keys}
 
@@ -237,9 +249,8 @@ def optuna_objective(trial, args):
     return np.mean(fit_metrics["val"]["accuracy"])
 
 
-def run_study(args):
-    import optuna
-    from optuna.trial import TrialState
+def run_study(args: argparse.Namespace) -> t.Dict[str, float]:
+    """Run optuna study to find best hyperparameters. In this case, it picks those that maximize the validation accuracy."""
 
     pruner: optuna.pruners.BasePruner = optuna.pruners.MedianPruner()
 
@@ -273,7 +284,9 @@ def run_study(args):
     return trial.params
 
 
-def create_tools(args):
+def create_tools(args: argparse.Namespace) -> t.Dict[str, t.Any]:
+    """Create experiment and logger."""
+
     exp = create_tracking_exp(args)
     if not args.exp_disabled:
         args.run_name = exp.name
@@ -297,7 +310,8 @@ def create_tools(args):
     }
 
 
-def create_main_components(init_model, args):
+def create_main_components(init_model: t.Callable, args: argparse.Namespace):
+    """Create datamodule and model."""
     datamodule = CityscapesDataModule(
         data_base_dir=cfg.data.data_dir,
         batch_size=args.batch_size,
@@ -313,8 +327,11 @@ def create_main_components(init_model, args):
     }
 
 
-def update_args(args, optimal_params):
-    for k, v in optimal_params.items():
+def update_args(
+    args: argparse.Namespace, kv_map: t.Dict[str, float]
+) -> argparse.Namespace:
+    """Update existing keys in args with new values for these keys from kv_map."""
+    for k, v in kv_map.items():
         assert hasattr(args, k)
         setattr(args, k, v)
     return args

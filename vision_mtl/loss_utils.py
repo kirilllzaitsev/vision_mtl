@@ -1,7 +1,14 @@
+import torch
 from torch.nn import functional as F
 
 
-def calc_loss(out, gt_mask, gt_depth, segm_criterion, depth_criterion):
+def calc_loss(
+    out: dict,
+    gt_mask: torch.Tensor,
+    gt_depth: torch.Tensor,
+    segm_criterion: torch.nn.Module,
+    depth_criterion: torch.nn.Module,
+) -> torch.Tensor:
     segm_logits = out["segm"]
     depth_logits = out["depth"]
 

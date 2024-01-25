@@ -1,8 +1,10 @@
 import argparse
 from functools import reduce
 
+import torch
 
-def parse_args():
+
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--do_overfit", action="store_true")
     parser.add_argument("--do_optimize", action="store_true")
@@ -37,7 +39,7 @@ def parse_args():
     return args
 
 
-def get_module_by_name(module, access_string: str):
+def get_module_by_name(module: torch.nn.Module, access_string: str) -> torch.nn.Module:
     """Retrieve a module nested in another by its access string.
 
     Works even when there is a Sequential in the module.
