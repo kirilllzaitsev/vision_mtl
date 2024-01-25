@@ -4,11 +4,12 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchmetrics import Accuracy, FBetaScore, JaccardIndex
+from torchmetrics import Accuracy, FBetaScore, JaccardIndex, MeanAbsoluteError
 
 from vision_mtl.cfg import cfg
 from vision_mtl.losses import SILogLoss
 from vision_mtl.models.basic_model import BasicMTLModel
+from vision_mtl.pipeline_utils import summarize_epoch_metrics
 
 
 class MTLModule(pl.LightningModule):
@@ -38,6 +39,7 @@ class MTLModule(pl.LightningModule):
                 "accuracy": [],
                 "jaccard_index": [],
                 "fbeta_score": [],
+                "mae": [],
             }
             for k in ["train", "val", "test", "predict"]
         }
@@ -49,19 +51,20 @@ class MTLModule(pl.LightningModule):
                 ignore_index=None,
                 average="micro",
             ).to(device),
+            "fbeta_score": FBetaScore(
+                beta=1.0,
+                threshold=0.5,
+                num_classes=num_classes,
+                average="weighted",
+                ignore_index=None,
+                mdmc_average="global",
+            ).to(device),
             "jaccard_index": JaccardIndex(
                 threshold=0.5,
                 num_classes=num_classes,
                 ignore_index=None,
             ).to(device),
-            "fbeta_score": FBetaScore(
-                beta=1.0,
-                threshold=0.5,
-                num_classes=num_classes,
-                average="micro",
-                ignore_index=None,
-                mdmc_average="global",
-            ).to(device),
+            "mae": MeanAbsoluteError().to(device),
         }
         self.automatic_optimization = False
 
@@ -76,7 +79,7 @@ class MTLModule(pl.LightningModule):
 
         all_losses = self.calc_losses(gt_mask, gt_depth, out)
 
-        all_metrics = self.calc_metrics(gt_mask, out)
+        all_metrics = self.calc_metrics(gt_mask, gt_depth, out)
 
         self.update_step_stats(stage, all_losses, all_metrics)
         for k, v in self.step_outputs[stage].items():
@@ -152,7 +155,7 @@ class MTLModule(pl.LightningModule):
         if "mask" in batch and "depth" in batch:
             gt_mask, gt_depth = batch["mask"], batch["depth"]
             all_losses = self.calc_losses(gt_mask, gt_depth, out)
-            all_metrics = self.calc_metrics(gt_mask, out)
+            all_metrics = self.calc_metrics(gt_mask, gt_depth, out)
             self.update_step_stats("predict", all_losses, all_metrics)
 
         preds = {"segm": out["segm_predictions"], "depth": out["depth_predictions"]}
@@ -160,31 +163,7 @@ class MTLModule(pl.LightningModule):
 
     def shared_epoch_end(self, stage: Any):
         step_results = self.step_outputs[stage]
-        loss = torch.mean(torch.tensor([loss for loss in step_results["loss"]]))
-
-        accuracy = torch.mean(
-            torch.tensor([accuracy for accuracy in step_results["accuracy"]])
-        )
-
-        jaccard_index = torch.mean(
-            torch.tensor(
-                [jaccard_index for jaccard_index in step_results["jaccard_index"]]
-            )
-        )
-
-        fbeta_score = torch.mean(
-            torch.tensor([fbeta_score for fbeta_score in step_results["fbeta_score"]])
-        )
-
-        for key in step_results.keys():
-            step_results[key].clear()
-
-        metrics = {
-            f"{stage}_loss": loss,
-            f"{stage}_accuracy": accuracy,
-            f"{stage}_jaccard_index": jaccard_index,
-            f"{stage}_fbeta_score": fbeta_score,
-        }
+        metrics = summarize_epoch_metrics(step_results, metric_name_prefix=stage)
         self.log_dict(metrics, prog_bar=True, logger=True)
         return metrics
 
