@@ -49,39 +49,25 @@ def build_model(args):
                 backbone_params=backbone_params,
             ),
         }
-        model = CSNet(
-            models,
-            channel_wise_stitching=getattr(args, "channel_wise_stitching", True),
-        )
+        model = CSNet(models, channel_wise_stitching=args.channel_wise_stitching)
     else:
         raise NotImplementedError(f"Unknown model name: {args.model_name}")
     return model
 
 
-def summarize_epoch_metrics(step_results):
-    loss = torch.mean(torch.tensor([loss for loss in step_results["loss"]]))
-
-    accuracy = torch.mean(
-        torch.tensor([accuracy for accuracy in step_results["accuracy"]])
-    )
-
-    jaccard_index = torch.mean(
-        torch.tensor([jaccard_index for jaccard_index in step_results["jaccard_index"]])
-    )
-
-    fbeta_score = torch.mean(
-        torch.tensor([fbeta_score for fbeta_score in step_results["fbeta_score"]])
-    )
-
+def summarize_epoch_metrics(step_results, metric_name_prefix=None):
+    if metric_name_prefix is None:
+        metric_name_prefix = ""
+    else:
+        metric_name_prefix += "/"
+    metrics = {
+        f"{metric_name_prefix}{k}": torch.mean(
+            torch.tensor([v for v in step_results[k]])
+        ).item()
+        for k in step_results.keys()
+    }
     for key in step_results.keys():
         step_results[key].clear()
-
-    metrics = {
-        "loss": loss.item(),
-        "accuracy": accuracy.item(),
-        "jaccard_index": jaccard_index.item(),
-        "fbeta_score": fbeta_score.item(),
-    }
     return metrics
 
 
