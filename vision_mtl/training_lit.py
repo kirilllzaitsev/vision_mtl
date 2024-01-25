@@ -6,6 +6,11 @@ import functools
 import os
 from collections import defaultdict
 
+if os.environ.get("DISPLAY") != ":0":
+    import matplotlib
+
+    matplotlib.use("Agg")
+
 import comet_ml
 import matplotlib.pyplot as plt
 import numpy as np
