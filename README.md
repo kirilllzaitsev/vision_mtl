@@ -8,21 +8,21 @@ Multi-task learning (MTL) is an emerging approach in the field of machine learni
 Following the taxonomy of MTL models outlined in [1], the following classes of architectures are implemented:
 
 - Hard parameter sharing, a shared backbone with shallow task-specific heads.
-- Soft parameter sharing, **Cross-Stitch Networks** Misra, I., Shrivastava, A., Gupta, A., & Hebert, M.  [Cross-Stitch Networks for Multi-task Learning](https://arxiv.org/abs/1604.03539). CVPR, 2016.
-- Modulation & adapters, **[MTAN]** Liu, S., Johns, E., & Davison, A. J.  [End-to-End Multi-Task Learning with Attention](http://arxiv.org/abs/1803.10704). CVPR, 2019.
+- Soft parameter sharing, **Cross-Stitch Networks**, Misra, I., Shrivastava, A., Gupta, A., & Hebert, M.  [Cross-Stitch Networks for Multi-task Learning](https://arxiv.org/abs/1604.03539). CVPR, 2016.
+- Modulation & adapters, **MTAN**, Liu, S., Johns, E., & Davison, A. J.  [End-to-End Multi-Task Learning with Attention](http://arxiv.org/abs/1803.10704). CVPR, 2019.
 
 ## Data
 
 The models are trained and evaluated on the following datasets:
 
 - [Cityscapes](https://www.cityscapes-dataset.com/) downloaded from [here](https://www.kaggle.com/datasets/sakshaymahna/cityscapes-depth-and-segmentation/data)
-- [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from [here](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
+- (#TBD) [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from [here](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 
 The chosen tasks are semantic segmentation and depth estimation. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label, while depth estimation is a pixel-wise regression problem, where each pixel is assigned a depth value.
 
 ### Cityscapes
 
-For the case of Cityscapes, the semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1].
+For the case of Cityscapes, the semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1]. The dataset contains 8925 training images and 1500 validation images. The images are of size 128x256.
 
 Sample input:
 
@@ -54,7 +54,7 @@ comet_username=your_comet_username
 
 ### Training
 
-The models are implemented in PyTorch. They are trained and evaluated on the task of semantic segmentation and depth estimation. A single GPU with 8Gb of memory is used for the experiments. The models are wrapped in the module from PyTorch Lightning, but due to this [issue](https://github.com/Lightning-AI/pytorch-lightning/issues/19216) optimization loop is manual instead of using the `Trainer` from this library.
+The models are implemented in PyTorch. They are trained and evaluated on the task of semantic segmentation and depth estimation. A single GPU with 8Gb of memory is used for the experiments. The models are wrapped in the module from PyTorch Lightning, but due to this [issue](https://github.com/Lightning-AI/pytorch-lightning/issues/19216) the optimization loop is manual instead of using the `Trainer` from this library.
 
 Entry point for the pipeline is `training_lit.py`. `utils.py` contains arguments for the command line.
 
@@ -151,7 +151,11 @@ MTAN performs best on all metrics related to semantic segmentation, but shows th
 ## References
 
 [1] ["Awesome" list for multi-task learning](https://github.com/Manchery/awesome-multi-task-learning)
+
 [2] [Tensorflow implementation of the cross-stitch network](https://github.com/helloyide/Cross-stitch-Networks-for-Multi-task-Learning)
+
 [3] [UNet architecture implementation](https://github.com/milesial/Pytorch-UNet/tree/master)
+
 [4] [Official implementation of MTAN](https://github.com/lorenmt/mtan)
+
 [5] [MTAN project page](https://shikun.io/projects/multi-task-attention-network)
