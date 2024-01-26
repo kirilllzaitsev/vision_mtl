@@ -29,10 +29,29 @@ class LoggerConfig:
 class DataConfig:
     data_dir: str = os.environ["data_base_dir"]
     benchmark_batch_path: str = f"{data_dir}/benchmark_batch.pt"
-    num_classes: int = 19
+    batch_size: int = 4
+    num_workers: int = 0
+    pin_memory: bool = True
+    drop_last: bool = True
+    shuffle_train: bool = True
+    train_size: float = 0.8
+
+    height: int
+    width: int
+
+    # segmentation
+    num_classes: int
+    class_names: list
+
+    # depth estimation
+    max_depth: float
+
+
+class CityscapesConfig(DataConfig):
     height: int = 128
     width: int = 256
 
+    num_classes: int = 19
     class_names: list = [
         "road",
         "sidewalk",
@@ -56,7 +75,9 @@ class DataConfig:
         "artifact",
     ]
 
-    batch_size: int = 32
+    max_depth: float = 1.0
+
+    batch_size: int = 8
     num_workers: int = 4
 
 
@@ -114,9 +135,10 @@ class VisConfig:
 
 class PipelineConfig:
     model: ModelConfig = BasicModelConfig()
-    data: DataConfig = DataConfig()
     logger: LoggerConfig = LoggerConfig()
     vis: VisConfig = VisConfig()
+
+    data: DataConfig
 
     device: str = "cuda"
 
@@ -125,5 +147,16 @@ class PipelineConfig:
 
     log_root_dir = Path(__file__).parent.parent / "lightning_logs"
 
+    def load_data_cfg(self, ds_name: str) -> None:
+        if ds_name == "cityscapes":
+            self.data = CityscapesConfig()
+        elif ds_name == "nyuv2":
+            self.data = NYUv2Config()
+        else:
+            raise ValueError(
+                f"Unknown dataset name: {ds_name}. Please use one of: cityscapes, nyuv2"
+            )
+
 
 cfg = PipelineConfig()
+cfg.load_data_cfg(os.environ["dataset_name"])
