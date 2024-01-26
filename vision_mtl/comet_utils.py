@@ -5,6 +5,8 @@ from pathlib import Path
 
 from comet_ml.api import API
 
+from vision_mtl.cfg import cfg
+
 root_dir = Path(__file__).parent.parent
 
 model_to_exp_name = {
@@ -23,8 +25,8 @@ def get_latest_ckpt_epoch(
 ) -> int:
     """Get the latest checkpoint epoch number from a Comet experiment by applying the model_name_regex to the experiment's assets."""
 
-    api = API(api_key=os.environ["COMET_API_KEY"])
-    exp_api = api.get(f"kirilllzaitsev/{project_name}/{exp_name}")
+    api = API(api_key=cfg.logger.api_key)
+    exp_api = api.get(f"{cfg.logger.username}/{project_name}/{exp_name}")
     ckpt_epochs = [
         int(re.match(model_name_regex, x["fileName"]).group(1))
         for x in exp_api.get_asset_list(asset_type="all")
@@ -51,8 +53,8 @@ def load_artifacts_from_comet(
     args_not_exist = not os.path.exists(args_file_path)
 
     if api is None:
-        api = API(api_key=os.environ["COMET_API_KEY"])
-    exp_uri = f"kirilllzaitsev/{project_name}/{exp_name}"
+        api = API(api_key=cfg.logger.api_key)
+    exp_uri = f"{cfg.logger.username}/{project_name}/{exp_name}"
     exp_api = api.get(exp_uri)
     os.makedirs(local_artifacts_dir, exist_ok=True)
     if args_not_exist:

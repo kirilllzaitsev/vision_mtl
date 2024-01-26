@@ -19,7 +19,7 @@ from vision_mtl.models.mtan_model import MTANMiniUnet
 def build_model(
     args: argparse.Namespace,
 ) -> t.Union[BasicMTLModel, MTANMiniUnet, CSNet]:
-    """Instantiate a model based on the args."""
+    """Instantiate a model based on the args. The models are aligned with each other in terms of the number of parameters."""
 
     if args.model_name == "basic":
         # basic
@@ -75,6 +75,8 @@ def build_model(
 def summarize_epoch_metrics(
     step_results: dict, metric_name_prefix: t.Optional[str] = None
 ) -> dict:
+    """Average the metrics in step_results and return them as a dict."""
+
     if metric_name_prefix is None:
         metric_name_prefix = ""
     else:
