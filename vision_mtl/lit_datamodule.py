@@ -7,19 +7,24 @@ import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
 
+from vision_mtl.cfg import cfg
 from vision_mtl.data_modules.ds_cityscapes import CityscapesDataset
-from vision_mtl.data_modules.transforms import test_transform, train_transform
+from vision_mtl.data_modules.transforms import (
+    cityscapes_test_transform,
+    cityscapes_train_transform,
+)
 
 
 class CityscapesDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_base_dir: str,
-        train_transform: Union[T.Compose, A.Compose] = train_transform,
-        test_transform: Union[T.Compose, A.Compose] = test_transform,
-        train_size: float = 0.8,
-        batch_size: int = 4,
-        num_workers: int = 0,
+        train_transform: Union[T.Compose, A.Compose] = cityscapes_train_transform,
+        test_transform: Union[T.Compose, A.Compose] = cityscapes_test_transform,
+        train_size: float = cfg.data.train_size,
+        batch_size: int = cfg.data.batch_size,
+        num_workers: int = cfg.data.num_workers,
+        shuffle_train: bool = cfg.data.shuffle_train,
         do_overfit: bool = False,
     ):
         super().__init__()
@@ -28,6 +33,7 @@ class CityscapesDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.train_size = train_size
+        self.shuffle_train = shuffle_train
         self.data_train: CityscapesDataset = None
         self.data_val: CityscapesDataset = None
         self.data_test: CityscapesDataset = None
@@ -88,7 +94,7 @@ class CityscapesDataModule(pl.LightningDataModule):
             dataset=self.data_train,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            shuffle=False,
+            shuffle=self.shuffle_train,
         )
 
     def val_dataloader(self) -> DataLoader:

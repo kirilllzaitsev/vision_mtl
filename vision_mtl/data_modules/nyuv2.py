@@ -14,7 +14,11 @@ import requests
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 from torchvision.datasets.utils import download_url
+
+from vision_mtl.cfg import cfg
+from vision_mtl.data_modules.transforms import nyuv2_transform
 
 
 class NYUv2(Dataset):
@@ -40,17 +44,18 @@ class NYUv2(Dataset):
 
     def __init__(
         self,
-        root: str,
+        data_base_dir: str = cfg.data.data_dir,
         train: bool = True,
         download: bool = False,
-        use_rgb=True,
-        use_seg=True,
-        use_depth=True,
-        use_sn=False,
-        rgb_transform=None,
-        seg_transform=None,
-        sn_transform=None,
-        depth_transform=None,
+        use_rgb: bool = True,
+        use_seg: bool = True,
+        use_depth: bool = True,
+        use_sn: bool = False,
+        rgb_transform: transforms.Compose = nyuv2_transform,
+        seg_transform: transforms.Compose = nyuv2_transform,
+        sn_transform: transforms.Compose = nyuv2_transform,
+        depth_transform: transforms.Compose = nyuv2_transform,
+        max_depth: float = cfg.data.max_depth,
     ):
         """
         Will return tuples based on what data source has been enabled (rgb, seg etc).
@@ -68,7 +73,7 @@ class NYUv2(Dataset):
         to meters
         """
         super().__init__()
-        self.root = root
+        self.root = data_base_dir
 
         self.rgb_transform = rgb_transform
         self.seg_transform = seg_transform
@@ -82,6 +87,7 @@ class NYUv2(Dataset):
 
         self.train = train
         self._split = "train" if train else "test"
+        self.max_depth = max_depth
 
         if download:
             self.download()
@@ -92,7 +98,9 @@ class NYUv2(Dataset):
             )
 
         # rgb folder as ground truth
-        self._files = sorted(os.listdir(os.path.join(root, f"{self._split}_rgb")))
+        self._files = sorted(
+            os.listdir(os.path.join(data_base_dir, f"{self._split}_rgb"))
+        )
 
     def __getitem__(self, index: int):
         folder = lambda name: os.path.join(self.root, f"{self._split}_{name}")
@@ -104,7 +112,9 @@ class NYUv2(Dataset):
             img = Image.open(os.path.join(folder("rgb"), self._files[index]))
             if self.rgb_transform is not None:
                 img = self.rgb_transform(img)
-            sample["img"] = img
+            else:
+                img = torch.from_numpy(np.array(img)).float() / 255
+            sample["img"] = img.float()
 
         if self.use_seg:
             random.seed(seed)
@@ -145,7 +155,7 @@ class NYUv2(Dataset):
     def __len__(self):
         return len(self._files)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fmt_str = f"Dataset {self.__class__.__name__}\n"
         fmt_str += f"    Number of data points: {self.__len__()}\n"
         fmt_str += f"    Split: {self._split}\n"
@@ -346,9 +356,9 @@ def _create_depth_files(mat_file: str, root: str, train_ids: list):
 
 if __name__ == "__main__":
     # executed for the first time, downloads the data requested by use_* flags
-    data_dir_root = './data'
+    data_dir_root = "./data"
     train_ds = NYUv2(
-        root=data_dir_root,
+        data_base_dir=data_dir_root,
         download=True,
         train=True,
         use_rgb=True,

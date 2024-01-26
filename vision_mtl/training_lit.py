@@ -66,6 +66,8 @@ def run_pipe(
     benchmark_batch = datamodule.benchmark_batch
     if benchmark_batch is not None:
         benchmark_batch = module.transfer_batch_to_device(benchmark_batch, device, 0)
+    else:
+        print("A batch for benchmarking is not found.")
 
     epoch_pbar = tqdm(range(num_epochs), desc="Epochs")
     epoch_metrics = {
