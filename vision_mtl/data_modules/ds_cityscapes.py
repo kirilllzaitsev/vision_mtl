@@ -68,6 +68,9 @@ class CityscapesDataset(Dataset):
 
         return dict_paths
 
-    def load_benchmark_batch(self) -> dict:
-        batch = torch.load(cfg.data.benchmark_batch_path)
+    def load_benchmark_batch(self) -> t.Optional[dict]:
+        if os.path.exists(cfg.data.benchmark_batch_path):
+            batch = torch.load(cfg.data.benchmark_batch_path)
+        else:
+            batch = None
         return batch
