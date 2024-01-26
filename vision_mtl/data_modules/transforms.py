@@ -22,3 +22,9 @@ test_transform = A.Compose(
         pytorch.ToTensorV2(),
     ]
 )
+
+nyuv2_transform = transforms.Compose(
+    [
+        transforms.ToTensor(),
+    ]
+)
