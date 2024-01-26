@@ -90,7 +90,7 @@ For depth estimation only mean absolute error (MAE) is used.
 
 The models are aligned in terms of the number of parameters and amount to approximately 13.3M parameters.
 
-The models are not tailored to match the performance claimed in the original papers, but rather to explore how different MTL paradigms perform on the chosen tasks under the same setup and without any tuning (except for the naive model).
+The models are not tailored to match the performance claimed in the original papers, but rather to explore how different MTL paradigms perform on the chosen tasks under the same setup and without any tuning (except for the case of hard parameter sharing).
 
 #### Hard parameter sharing
 
