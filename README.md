@@ -1,7 +1,7 @@
 Multi-task learning in computer vision
 ==============================
 
-Multi-task learning (MTL) is an emerging approach in the field of machine learning, characterized by its ability to simultaneously address several related tasks, thereby enhancing learning efficiency and performance. This work explores some methodologies for MTL in the context of machine perception. The main goal is to study some of the models that represent different paradigms in MTL by implementing and evaluating them on established benchmarks.
+Multi-task learning (MTL) is an emerging approach in the field of machine learning, characterized by its ability to simultaneously address several related tasks, thereby enhancing learning efficiency and performance. This work explores some methodologies for MTL in the context of machine perception. The **main goal** is to study some of the models that represent different paradigms in MTL by implementing and evaluating them on established benchmarks.
 
 ## Models
 
@@ -16,20 +16,26 @@ Following the taxonomy of MTL models outlined in [1], the following classes of a
 The models are trained and evaluated on the following datasets:
 
 - [Cityscapes](https://www.cityscapes-dataset.com/) downloaded from [here](https://www.kaggle.com/datasets/sakshaymahna/cityscapes-depth-and-segmentation/data)
-- (#TBD) [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from [here](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
+- [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from [here](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 
-The chosen tasks are semantic segmentation and depth estimation. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label, while depth estimation is a pixel-wise regression problem, where each pixel is assigned a depth value.
+The chosen tasks are **semantic segmentation** and **depth estimation**. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label without considering different instances of the same class.
+In depth estimation the network solves a pixel-wise regression problem, where each pixel is assigned a depth value from a predefined continuous range.
 
 ### Cityscapes
 
-For the case of Cityscapes, the semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1]. The dataset contains 8925 training images and 1500 validation images. The images are of size 128x256.
+Cityscapes covers a set of urban street scenes from 50 different cities, offering a benchmark for outdoor scene understanding. The dataset contains 8925 training samples and 1500 validation samples. The images are of size 128x256. The semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1].
 
 Sample input:
 
-- semantic segmentation
-![Alt text](assets/cityscapes_segm_.png)
-- depth estimation
-![Alt text](assets/cityscapes_depth.png)
+![Cityscapes sample](assets/cityscapes_sample.png)
+
+### NYUv2
+
+NYUv2 is a dataset for indoor scene understanding. Coming in multiple versions, the one used in this work contains 795 training and 654 validation samples. The images are of size 480x640. There are 13 classes for semantic segmentation and depths are represented as absolute values in the range [0, 10].
+
+Sample input:
+
+![NYUv2 sample](assets/nyuv2_sample.png)
 
 ## Pre-requisites
 
