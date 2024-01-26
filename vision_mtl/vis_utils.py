@@ -49,9 +49,13 @@ def plot_annotated_segm_mask(
     class_names: t.Optional[list] = None,
     img: t.Optional[t.Union[np.ndarray, torch.Tensor]] = None,
     alpha: float = 1.0,
-) -> plt.Figure:
+    ax: t.Optional[plt.Axes] = None,
+    fontsize: int = 10,
+) -> plt.Axes:
     if not isinstance(mask, np.ndarray):
         mask = mask.numpy()
+    if mask.ndim == 3:
+        mask = mask.squeeze(axis=0)
 
     def remap_class_idx_to_rgb(mask, palette):
         rgb_mask = np.zeros((*mask.shape, 3), dtype=np.uint8)
@@ -71,16 +75,17 @@ def plot_annotated_segm_mask(
     ]
     labels = [n for _, n in legend_data]
 
-    fig, ax = plt.subplots(figsize=(10, 10))
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10, 10))
     if img is not None:
         if not isinstance(img, np.ndarray):
             img = img.numpy()
         if img.shape[0] == 3:
             img = img.transpose(1, 2, 0)
         ax.imshow(img)
-    plt.imshow(remap_class_idx_to_rgb(mask, colored_rgb_palette), alpha=alpha)
-    plt.legend(handles, labels)
-    return fig
+    ax.imshow(remap_class_idx_to_rgb(mask, colored_rgb_palette), alpha=alpha)
+    ax.legend(handles, labels, fontsize=fontsize)
+    return ax
 
 
 def plot_annotated_segm_mask_v1(mask: np.ndarray, class_names: list) -> plt.Figure:
