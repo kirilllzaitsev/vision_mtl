@@ -82,6 +82,10 @@ For semantic segmentation, the following metrics are used:
 
 For depth estimation only mean absolute error (MAE) is used.
 
+### Losses
+
+[Cross-entropy loss](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) is used for semantic segmentation and [scale-invariant log loss](https://hiddenlayers.tech/blog/the-mystery-of-silog-loss/) is used for depth estimation.
+
 ### Models
 
 The models are aligned in terms of the number of parameters and amount to approximately 13.3M parameters.
@@ -147,8 +151,8 @@ Aggregated table with the metrics obtained on the validation set of `Cityscapes`
 where:
 
 - HS_non_pretrained: hard parameter sharing with no pretrained weights
-- HS_imagenet: hard parameter sharing with pretrained weights
-- HS_imagenet_tuned: hard parameter sharing with pretrained weights and tuned hyperparameters
+- HS_imagenet: hard parameter sharing with weights pretrained on Imagenet
+- HS_imagenet_tuned: hard parameter sharing with pretrained weights and optimized loss scales
 - CSnet: soft parameter sharing
 - MTAN: modulation & adapters
 
