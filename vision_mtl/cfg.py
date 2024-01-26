@@ -58,15 +58,31 @@ class DataConfig:
 
     batch_size: int = 32
     num_workers: int = 4
-    pin_memory: bool = True
-    drop_last: bool = True
-    shuffle: bool = True
-    val_split: float = 0.1
-    test_split: float = 0.1
-    img_size: int = 224
-    grayscale: bool = False
-    normalize: bool = True
-    augment: bool = True
+
+
+class NYUv2Config(DataConfig):
+    height: int = 480
+    width: int = 640
+
+    num_classes: int = 13
+    class_names: list = [
+        "background",
+        "bed",
+        "books",
+        "ceiling",
+        "chair",
+        "floor",
+        "furniture",
+        "objects",
+        "painting",
+        "sofa",
+        "table",
+        "tv",
+        "wall",
+        "window",
+    ]
+
+    max_depth: float = 10.0
 
 
 class VisConfig:
