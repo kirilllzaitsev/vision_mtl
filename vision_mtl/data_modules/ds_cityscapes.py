@@ -1,4 +1,5 @@
 import os
+import typing as t
 from typing import Any
 
 import numpy as np
@@ -14,11 +15,13 @@ class CityscapesDataset(Dataset):
         stage: str,
         data_base_dir: str = cfg.data.data_dir,
         transforms: Any = None,
+        max_depth: float = cfg.data.max_depth,
     ):
         self.data_base_dir = data_base_dir
         self.transforms = transforms
         self.stage = stage
         self.paths = self.parse_paths()
+        self.max_depth = max_depth
 
     def __len__(self) -> int:
         return len(self.paths["img"])
@@ -52,6 +55,10 @@ class CityscapesDataset(Dataset):
         img = img.float()
         mask = mask.long()
         depth = depth.float()
+
+        # normalize depth
+        if depth.max() > 1.0:
+            depth /= self.max_depth
 
         sample = {"img": img, "mask": mask, "depth": depth}
         return sample

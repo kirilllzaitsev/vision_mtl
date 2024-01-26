@@ -131,6 +131,13 @@ class NYUv2(Dataset):
             if isinstance(depth, torch.Tensor):
                 # depth png is uint16
                 depth = depth.float() / 1e4
+            else:
+                depth = torch.from_numpy(np.array(depth))
+
+            # normalize depth
+            if depth.max() > 1.0:
+                depth /= self.max_depth
+
             sample["depth"] = depth
 
         return sample
