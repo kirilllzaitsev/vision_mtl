@@ -335,3 +335,18 @@ def _create_depth_files(mat_file: str, root: str, train_ids: list):
         folder = "train" if id_ in train_ids else "test"
         save_path = os.path.join(root, f"{folder}_depth", id_ + ".png")
         Image.fromarray(img).save(save_path)
+
+
+if __name__ == "__main__":
+    # executed for the first time, downloads the data requested by use_* flags
+    data_dir_root = './data'
+    train_ds = NYUv2(
+        root=data_dir_root,
+        download=True,
+        train=True,
+        use_rgb=True,
+        use_seg=True,
+        use_depth=True,
+        use_sn=False,
+    )
+    print(train_ds)
