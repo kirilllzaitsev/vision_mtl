@@ -16,7 +16,7 @@ Following the taxonomy of MTL models outlined in [1], the following classes of a
 The models are trained and evaluated on the following datasets:
 
 - [Cityscapes](https://www.cityscapes-dataset.com/) downloaded from [here](https://www.kaggle.com/datasets/sakshaymahna/cityscapes-depth-and-segmentation/data)
-- [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from [here](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
+- [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from multiple sources (see `data_modules/nyuv2.py` and the [original loader](https://github.com/xapharius/pytorch-nyuv2/tree/master))
 
 The chosen tasks are **semantic segmentation** and **depth estimation**. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label without considering different instances of the same class.
 In depth estimation the network solves a pixel-wise regression problem, where each pixel is assigned a depth value from a predefined continuous range.
