@@ -1,4 +1,4 @@
-Multi-task learning in computer vision
+Multi-task learning for scene understanding
 ==============================
 
 Multi-task learning (MTL) is an emerging approach in the field of machine learning, characterized by its ability to simultaneously address several related tasks, thereby enhancing learning efficiency and performance. This work explores some methodologies for MTL in the context of machine perception. The **main goal** is to study some of the models that represent different paradigms in MTL by implementing and evaluating them on established benchmarks.
