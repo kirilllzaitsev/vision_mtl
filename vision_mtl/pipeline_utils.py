@@ -213,7 +213,7 @@ def load_ckpt_model(
         )[-1]
     model_ckpt_path = os.path.join(ckpt_dir, artifact_name)
     print(f"Loading model from {model_ckpt_path}")
-    model_ckpt = torch.load(model_ckpt_path)
+    model_ckpt = torch.load(model_ckpt_path, map_location="cpu")
     return model_ckpt
 
 
