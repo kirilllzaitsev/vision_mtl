@@ -9,18 +9,15 @@ from torch.utils.data import DataLoader
 
 from vision_mtl.cfg import cfg
 from vision_mtl.data_modules.ds_cityscapes import CityscapesDataset
-from vision_mtl.data_modules.transforms import (
-    cityscapes_test_transform,
-    cityscapes_train_transform,
-)
+from vision_mtl.data_modules.nyuv2 import NYUv2
 
 
 class CityscapesDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        data_base_dir: str,
-        train_transform: Union[T.Compose, A.Compose] = cityscapes_train_transform,
-        test_transform: Union[T.Compose, A.Compose] = cityscapes_test_transform,
+        dataset_name: str,
+        train_transform: t.Optional[Union[T.Compose, A.Compose]] = None,
+        test_transform: t.Optional[Union[T.Compose, A.Compose]] = None,
         train_size: float = cfg.data.train_size,
         batch_size: int = cfg.data.batch_size,
         num_workers: int = cfg.data.num_workers,
@@ -28,25 +25,29 @@ class CityscapesDataModule(pl.LightningDataModule):
         do_overfit: bool = False,
     ):
         super().__init__()
-        self.data_base_dir = data_base_dir
         self.do_overfit = do_overfit
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.train_size = train_size
         self.shuffle_train = shuffle_train
-        self.data_train: CityscapesDataset = None
-        self.data_val: CityscapesDataset = None
-        self.data_test: CityscapesDataset = None
-        self.data_predict: CityscapesDataset = None
+        self.data_train: t.Union[CityscapesDataset, NYUv2] = None
+        self.data_val: t.Union[CityscapesDataset, NYUv2] = None
+        self.data_test: t.Union[CityscapesDataset, NYUv2] = None
+        self.data_predict: t.Union[CityscapesDataset, NYUv2] = None
         self.benchmark_batch = None
         self.train_transform = train_transform
         self.test_transform = test_transform
+        self.dataset_name = dataset_name
         self.save_hyperparameters()
 
     def setup(self, stage: t.Optional[str] = None) -> None:
-        data_train = CityscapesDataset(
+        if self.dataset_name == "cityscapes":
+            ds_cls = CityscapesDataset
+        else:
+            ds_cls = NYUv2
+
+        data_train = ds_cls(
             stage="train",
-            data_base_dir=self.data_base_dir,
             transforms=self.train_transform,
         )
         self.benchmark_batch = data_train.load_benchmark_batch()
@@ -67,22 +68,22 @@ class CityscapesDataModule(pl.LightningDataModule):
                     ],
                 )
                 self.data_val.transforms = self.test_transform
+
+        val_stage_name = "val" if self.dataset_name == "cityscapes" else "test"
         if stage == "test" or stage is None:
             if self.do_overfit:
                 self.data_test = self.data_train
             else:
-                self.data_test = CityscapesDataset(
-                    stage="val",
-                    data_base_dir=self.data_base_dir,
+                self.data_test = ds_cls(
+                    stage=val_stage_name,
                     transforms=self.test_transform,
                 )
         if stage == "predict" or stage is None:
             if self.do_overfit:
                 self.data_predict = self.data_train
             else:
-                self.data_predict = CityscapesDataset(
-                    stage="val",
-                    data_base_dir=self.data_base_dir,
+                self.data_predict = ds_cls(
+                    stage=val_stage_name,
                     transforms=self.test_transform,
                 )
 
