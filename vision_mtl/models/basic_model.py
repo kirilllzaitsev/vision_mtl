@@ -11,8 +11,8 @@ from vision_mtl.models.model_utils import Backbone
 class BasicMTLModel(nn.Module):
     def __init__(
         self,
+        segm_classes: int,
         activation: t.Any = None,
-        segm_classes: int = 19,
         encoder_name: str = "timm-mobilenetv3_large_100",
         encoder_weights: str = "imagenet",
         decoder_first_channel: int = 256,
@@ -62,7 +62,7 @@ class BasicMTLModel(nn.Module):
 
 
 if __name__ == "__main__":
-    model = BasicMTLModel()
+    model = BasicMTLModel(19)
     x = torch.randn(1, 3, 256, 256)
     y = model(x)
     print(y["depth"].shape)

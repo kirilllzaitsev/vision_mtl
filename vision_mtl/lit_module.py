@@ -17,9 +17,9 @@ class MTLModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
+        num_classes: int,
         optim_dict: t.Optional[dict] = None,
         lr: t.Optional[float] = None,
-        num_classes: int = cfg.data.num_classes,
         device: str = cfg.device,
         loss_segm_weight: float = 1.0,
         loss_depth_weight: float = 1.0,
@@ -237,7 +237,7 @@ class MTLModule(pl.LightningModule):
 
 if __name__ == "__main__":
     model = BasicMTLModel(segm_classes=19)
-    module = MTLModule(model).to(cfg.device)
+    module = MTLModule(model, num_classes=19).to(cfg.device)
     print(module)
     batch_size = 1
     sample_batch = {
