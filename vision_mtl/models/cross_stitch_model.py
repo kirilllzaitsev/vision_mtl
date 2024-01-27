@@ -99,29 +99,6 @@ class CSNet(nn.Module):
             }
         self.cross_stitch_layers = nn.ModuleDict(self.cross_stitch_layers)
 
-    def parameters(self):
-        params = []
-        for task_name in self.model_names:
-            params.extend(self.models[task_name].parameters())
-        for layer_name in self.cross_stitch_layers.keys():
-            params.extend(self.cross_stitch_layers[layer_name].parameters())
-        return params
-
-    def cuda(self):
-        for task_name in self.model_names:
-            self.models[task_name].cuda()
-        for layer_name in self.cross_stitch_layers.keys():
-            self.cross_stitch_layers[layer_name].cuda()
-        return self
-
-    def to(self, device):
-        if isinstance(device, str):
-            device = torch.device(device)
-        if device.type == "cuda":
-            self.cuda()
-        else:
-            super().to(device)
-
     def forward(self, x: torch.Tensor) -> dict:
         """Forward pass. Returns a map task_name -> output tensor."""
 
