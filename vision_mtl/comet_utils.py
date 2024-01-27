@@ -7,8 +7,6 @@ from comet_ml.api import API
 
 from vision_mtl.cfg import cfg
 
-root_dir = Path(__file__).parent.parent
-
 model_to_exp_name = {
     "basic_non_pretrained": "supreme_dog_1028",
     "basic": "institutional_termite_879",
