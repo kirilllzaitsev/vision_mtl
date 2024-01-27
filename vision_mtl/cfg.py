@@ -28,9 +28,10 @@ class BasicModelConfig(ModelConfig):
 
 
 class LoggerConfig:
-    api_key: str = os.environ["comet_api_key"]
-    username: str = os.environ["comet_username"]
+    api_key: t.Optional[str] = os.environ.get("comet_api_key")
+    username: t.Optional[str] = os.environ.get("comet_username")
     project_name: str = "vision-mtl"
+    disabled: bool = api_key is None or username is None
 
 
 class DataConfig:

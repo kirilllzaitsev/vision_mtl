@@ -226,7 +226,7 @@ def load_ckpt_session(ckpt_dir: str, filename="session.pt") -> t.Any:
 def create_tracking_exp(
     args: argparse.Namespace,
     exp_disabled: bool = True,
-    force_disabled: bool = False,
+    force_disabled: bool = cfg.logger.disabled,
     project_name: str = cfg.logger.project_name,
 ) -> comet_ml.Experiment:
     """Creates an experiment on Comet and logs all the code in the current directory."""
