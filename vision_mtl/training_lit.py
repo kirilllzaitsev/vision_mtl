@@ -50,7 +50,7 @@ def run_pipe(
     device: t.Union[str, torch.device],
     exp: comet_ml.Experiment,
     logger: TensorBoardLogger,
-) -> t.Dict[str, t.Dict[str, float]]:
+) -> t.Dict[str, t.Dict[str, list]]:
     """Run the training loop for num_epochs and return metrics from training and validation epochs."""
 
     global_step = 0
@@ -96,7 +96,9 @@ def run_pipe(
 
             train_loss += loss.item()
             for k, v in module.step_outputs[stage].items():
-                logger.log_metrics({f"{stage}/{k}": v[-1]}, step=global_step)
+                logger.log_metrics({f"step/{stage}/{k}": v[-1]}, step=global_step)
+                if exp:
+                    exp.log_metric(f"step/{stage}/{k}", v[-1], step=global_step)
             pbar_postfix = print_metrics(f"{stage}", module.step_outputs[stage])
             train_pbar.set_postfix_str(pbar_postfix)
             train_pbar.update()
@@ -106,12 +108,17 @@ def run_pipe(
         train_epoch_metrics = module.on_train_epoch_end()
         for k, v in train_epoch_metrics.items():
             epoch_metrics[stage][k].append(v)
-        pbar_postfix = print_metrics(f"epoch/{stage}", train_epoch_metrics)
+        pbar_postfix = print_metrics("epoch", train_epoch_metrics)
         epoch_pbar.set_postfix_str(pbar_postfix)
         logger.log_metrics(
-            {f"epoch/{stage}/{k}": v for k, v in train_epoch_metrics.items()},
+            {f"epoch/{k}": v for k, v in train_epoch_metrics.items()},
             step=epoch,
         )
+        if exp:
+            exp.log_metrics(
+                {f"epoch/{k}": v for k, v in train_epoch_metrics.items()},
+                step=epoch,
+            )
 
         if ((epoch + 1) % args.val_epoch_freq) == 0:
             stage = "val"
@@ -141,7 +148,9 @@ def run_pipe(
 
                     val_loss += loss.item()
                     for k, v in module.step_outputs[stage].items():
-                        logger.log_metrics({f"{stage}/{k}": v[-1]}, step=val_step)
+                        logger.log_metrics({f"step/{stage}/{k}": v[-1]}, step=val_step)
+                        if exp:
+                            exp.log_metric(f"step/{stage}/{k}", v[-1], step=val_step)
                     pbar_postfix = print_metrics(f"{stage}", module.step_outputs[stage])
                     val_pbar.set_postfix_str(pbar_postfix)
                     val_pbar.update()
@@ -155,9 +164,14 @@ def run_pipe(
             epoch_pbar.set_postfix_str(pbar_postfix)
 
             logger.log_metrics(
-                {f"epoch/{stage}/{k}": v for k, v in val_epoch_metrics.items()},
+                {f"epoch/{k}": v for k, v in val_epoch_metrics.items()},
                 step=epoch,
             )
+            if exp:
+                exp.log_metrics(
+                    {f"epoch/{k}": v for k, v in val_epoch_metrics.items()},
+                    step=epoch,
+                )
 
             scheduler.step(val_loss)
 

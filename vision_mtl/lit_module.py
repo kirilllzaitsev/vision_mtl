@@ -69,7 +69,7 @@ class MTLModule(pl.LightningModule):
         }
         self.automatic_optimization = False
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> dict:
         return self.model(x)
 
     def shared_step(self, batch: dict, stage: str) -> torch.Tensor:
@@ -155,7 +155,7 @@ class MTLModule(pl.LightningModule):
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         img = batch["img"]
 
-        raw_out = self.forward(img)
+        raw_out = self(img)
 
         out = self.postprocess_raw_out(raw_out)
 
