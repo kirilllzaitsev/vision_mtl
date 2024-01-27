@@ -1,14 +1,20 @@
 """Contains utility classes to control the pipeline."""
 
 import os
+import typing as t
 from pathlib import Path
 
+import albumentations as A
+import albumentations.pytorch as pytorch
 import numpy as np
 from dotenv import load_dotenv
 from omegaconf import MISSING
+from torchvision import transforms
 
 # sensitive data goes to the .env file not shared in the repository
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
+
+root_dir = Path(__file__).parent
 
 
 class ModelConfig:
@@ -27,8 +33,9 @@ class LoggerConfig:
 
 
 class DataConfig:
-    data_dir: str = os.environ["data_base_dir"]
-    benchmark_batch_path: str = f"{data_dir}/benchmark_batch.pt"
+    dataset_name: str
+
+    data_dir: str = str(root_dir / "data")
     batch_size: int = 4
     num_workers: int = 0
     pin_memory: bool = True
@@ -46,8 +53,16 @@ class DataConfig:
     # depth estimation
     max_depth: float
 
+    # transforms
+    train_transform: t.Union[A.Compose, transforms.Compose]
+    test_transform: t.Union[A.Compose, transforms.Compose]
+
 
 class CityscapesConfig(DataConfig):
+    dataset_name: str = "cityscapes"
+    data_dir: str = f"{DataConfig.data_dir}/{dataset_name}"
+    benchmark_batch_path: str = f"{data_dir}/benchmark_batch.pt"
+
     height: int = 128
     width: int = 256
 
@@ -80,8 +95,27 @@ class CityscapesConfig(DataConfig):
     batch_size: int = 8
     num_workers: int = 4
 
+    norm_mean = (0.485, 0.456, 0.406)
+    norm_std = (0.229, 0.224, 0.225)
+
+    train_transform: A.Compose = A.Compose(
+        [
+            A.Resize(height=height, width=width),
+            pytorch.ToTensorV2(),
+        ]
+    )
+    test_transform: A.Compose = A.Compose(
+        [
+            A.Resize(height=height, width=width),
+            pytorch.ToTensorV2(),
+        ]
+    )
+
 
 class NYUv2Config(DataConfig):
+    dataset_name: str = "nyuv2"
+    data_dir: str = f"{DataConfig.data_dir}/{dataset_name}"
+
     height: int = 480
     width: int = 640
 
@@ -104,6 +138,17 @@ class NYUv2Config(DataConfig):
     ]
 
     max_depth: float = 10.0
+
+    train_transform: transforms.Compose = transforms.Compose(
+        [
+            transforms.ToTensor(),
+        ]
+    )
+    test_transform: transforms.Compose = transforms.Compose(
+        [
+            transforms.ToTensor(),
+        ]
+    )
 
 
 class VisConfig:
@@ -137,8 +182,7 @@ class PipelineConfig:
     model: ModelConfig = BasicModelConfig()
     logger: LoggerConfig = LoggerConfig()
     vis: VisConfig = VisConfig()
-
-    data: DataConfig
+    data: DataConfig = DataConfig()
 
     device: str = "cuda"
 
