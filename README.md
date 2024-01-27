@@ -143,6 +143,16 @@ Files:
 
 ## Results
 
+### Using trained models
+
+Weights of the trained models as well as CLI arguments for training are available for download from Google Drive:
+
+| | Cityscapes | NYUv2 |
+|:---|:---:|:---:|
+| [Google Drive](https://drive.google.com/drive/folders/1mYasCMG0rRmwL89hDWKKnIuDp4oi64vu?usp=sharing) | [Google Drive](https://drive.google.com/drive/folders/1lY0gtYrb8deWwzfkIn4M5NpOOYPKuxI4?usp=sharing)
+
+An example on how to use these artifacts can be found in `notebooks/get_model_metrics.ipynb`.
+
 Aggregated metrics obtained on the validation set of `Cityscapes`:
 
 | Metrics       |   HS | HS (P) |   HS_tuned_loss_weights (P) |   CSNet (P) |   MTAN |
