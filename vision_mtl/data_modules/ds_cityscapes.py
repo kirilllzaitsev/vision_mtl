@@ -63,20 +63,22 @@ class CityscapesDataset(Dataset):
         return sample
 
     def parse_paths(self) -> dict:
-        dict_paths = {"img": [], "mask": [], "depth": []}
         base_dir = f"{self.data_base_dir}/{self.stage}"
-        for dir_name, _, filenames in os.walk(base_dir):
+        dir_name_to_key = {
+            "image": "img",
+            "label": "mask",
+            "depth": "depth",
+        }
+        dict_paths = {v: [] for v in dir_name_to_key.values()}
+        for k, v in dir_name_to_key.items():
+            filenames = sorted(glob.glob(f"{base_dir}/{k}/*.npy"))
             for filename in filenames:
-                name = filename.split(".")[0]
-                dict_paths["img"].append(f"{base_dir}/image/{name}.npy")
-                dict_paths["mask"].append(f"{base_dir}/label/{name}.npy")
-                dict_paths["depth"].append(f"{base_dir}/depth/{name}.npy")
+                dict_paths[v].append(filename)
+
+        assert (
+            len(dict_paths["img"])
+            == len(dict_paths["mask"])
+            == len(dict_paths["depth"])
+        )
 
         return dict_paths
-
-    def load_benchmark_batch(self) -> t.Optional[dict]:
-        if os.path.exists(data_cfg.benchmark_batch_path):
-            batch = torch.load(data_cfg.benchmark_batch_path)
-        else:
-            batch = None
-        return batch
