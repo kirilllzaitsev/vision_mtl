@@ -12,10 +12,10 @@ from dotenv import load_dotenv
 from omegaconf import MISSING
 from torchvision import transforms
 
-# sensitive data goes to the .env file not shared in the repository
-load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
-
 root_dir = Path(__file__).parent
+
+# sensitive data goes to the .env file not shared in the repository
+load_dotenv(dotenv_path=root_dir / ".env", override=True)
 
 
 class ModelConfig:
