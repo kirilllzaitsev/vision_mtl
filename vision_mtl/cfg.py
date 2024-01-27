@@ -142,11 +142,13 @@ class NYUv2Config(DataConfig):
     train_transform: transforms.Compose = transforms.Compose(
         [
             transforms.ToTensor(),
+            transforms.Resize((256, 256), antialias=True),
         ]
     )
     test_transform: transforms.Compose = transforms.Compose(
         [
             transforms.ToTensor(),
+            transforms.Resize((256, 256), antialias=True),
         ]
     )
 
