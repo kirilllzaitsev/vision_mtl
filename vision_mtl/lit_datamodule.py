@@ -50,7 +50,11 @@ class CityscapesDataModule(pl.LightningDataModule):
             stage="train",
             transforms=self.train_transform,
         )
-        self.benchmark_batch = data_train.load_benchmark_batch()
+        try:
+            self.benchmark_batch = data_train.load_benchmark_batch()
+        except Exception as e:
+            print("Failed to load benchmark batch: ", e)
+            self.benchmark_batch = None
         if stage == "fit" or stage is None:
             if self.do_overfit:
                 self.data_val = self.data_train = torch.utils.data.Subset(
