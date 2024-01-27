@@ -21,17 +21,19 @@ def build_model(
 ) -> t.Union[BasicMTLModel, MTANMiniUnet, CSNet]:
     """Instantiate a model based on the args. The models are aligned with each other in terms of the number of parameters."""
 
+    encoder_weights = getattr(
+        args,
+        "backbone_weights",
+        "imagenet",
+    )
     if args.model_name == "basic":
         # basic
+
         model = BasicMTLModel(
             segm_classes=data_cfg.num_classes,
             decoder_first_channel=540,
             num_decoder_layers=5,
-            encoder_weights=getattr(
-                args,
-                "backbone_weights",
-                "imagenet",
-            ),
+            encoder_weights=encoder_weights,
         )
     elif args.model_name == "mtan":
         # MTAN
@@ -50,7 +52,7 @@ def build_model(
         # cross-stitch
         backbone_params = dict(
             encoder_name="timm-mobilenetv3_large_100",
-            encoder_weights="imagenet",
+            encoder_weights=encoder_weights,
             decoder_first_channel=256,
             num_decoder_layers=5,
         )
