@@ -73,7 +73,9 @@ For CSNet the `model_name` argument is `csnet`, while for MTAN it is `mtan`. The
 
 Metrics, images, session, and model checkpoints are logged to Comet ML according to the `LoggerConfig` setup in `cfg.py`. Metrics are also logged to Tensorboard under the local `lightning_logs` directory.
 
-For Cityscapes, the `num_epochs` is set to 20, while for NYUv2 it is 50. For both datasets, the training set is split into training and validation sets with a ratio of 0.8. Scripts to run the training are provided in the `scripts` directory.
+For Cityscapes, the `num_epochs` is set to 20, while for NYUv2 it is 50. For both datasets, the training set is split into training and validation sets with a ratio of 0.8.
+
+Scripts to train the models are provided in the `scripts` directory.
 
 ### Metrics
 
