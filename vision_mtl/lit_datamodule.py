@@ -12,7 +12,7 @@ from vision_mtl.data_modules.ds_cityscapes import CityscapesDataset
 from vision_mtl.data_modules.nyuv2 import NYUv2
 
 
-class CityscapesDataModule(pl.LightningDataModule):
+class MTLDataModule(pl.LightningDataModule):
     def __init__(
         self,
         dataset_name: str,

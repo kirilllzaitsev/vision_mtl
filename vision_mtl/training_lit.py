@@ -25,7 +25,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from tqdm import tqdm
 
 from vision_mtl.cfg import DataConfig, cfg
-from vision_mtl.lit_datamodule import CityscapesDataModule
+from vision_mtl.lit_datamodule import MTLDataModule
 from vision_mtl.lit_module import MTLModule
 from vision_mtl.utils.pipeline_utils import (
     build_model,
@@ -45,7 +45,7 @@ from vision_mtl.utils.vis_utils import plot_preds
 def run_pipe(
     args: argparse.Namespace,
     module: MTLModule,
-    datamodule: CityscapesDataModule,
+    datamodule: MTLDataModule,
     num_epochs: int,
     device: t.Union[str, torch.device],
     exp: comet_ml.Experiment,
@@ -335,7 +335,7 @@ def create_main_components(
     init_model: t.Callable, args: argparse.Namespace, data_cfg: DataConfig
 ) -> t.Dict[str, t.Any]:
     """Create datamodule and model."""
-    datamodule = CityscapesDataModule(
+    datamodule = MTLDataModule(
         dataset_name=args.dataset_name,
         batch_size=args.batch_size,
         do_overfit=args.do_overfit,
