@@ -30,6 +30,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--ckpt_dir")
     parser.add_argument("--run_name")
+    parser.add_argument(
+        "--dataset_name", choices=["cityscapes", "nyuv2"], default="cityscapes"
+    )
     parser.add_argument("--backbone_weights", choices=["imagenet"])
     parser.add_argument("--lr", type=float, default=5e-3)
     parser.add_argument("--loss_segm_weight", type=float, default=1)
