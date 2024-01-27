@@ -119,7 +119,7 @@ class NYUv2Config(DataConfig):
     height: int = 480
     width: int = 640
 
-    num_classes: int = 13
+    num_classes: int = 13 + 1
     class_names: list = [
         "background",
         "bed",
@@ -142,13 +142,11 @@ class NYUv2Config(DataConfig):
     train_transform: transforms.Compose = transforms.Compose(
         [
             transforms.ToTensor(),
-            transforms.Resize((256, 256), antialias=True),
         ]
     )
     test_transform: transforms.Compose = transforms.Compose(
         [
             transforms.ToTensor(),
-            transforms.Resize((256, 256), antialias=True),
         ]
     )
 
