@@ -117,21 +117,21 @@ def run_pipe(
             stage = "val"
             print(f"---{stage.upper()}---")
 
-            if benchmark_batch is not None:
-                benchmark_preds = module.predict_step(benchmark_batch, 0, 0)
-                fig = plot_preds(
-                    batch_size=4,
-                    inputs_batch=benchmark_batch,
-                    preds_batch=benchmark_preds,
-                )
-                exp.log_figure("preds", fig)
-                if args.do_show_preds:
-                    plt.show()
-                plt.close()
-
-            val_loss = 0
-
             with torch.no_grad():
+                if benchmark_batch is not None:
+                    benchmark_preds = module.predict_step(benchmark_batch, 0, 0)
+                    fig = plot_preds(
+                        batch_size=4,
+                        inputs_batch=benchmark_batch,
+                        preds_batch=benchmark_preds,
+                    )
+                    exp.log_figure("preds", fig)
+                    if args.do_show_preds:
+                        plt.show()
+                    plt.close()
+
+                val_loss = 0
+
                 val_pbar = tqdm(
                     datamodule.val_dataloader(), desc="Val Batches", leave=False
                 )
