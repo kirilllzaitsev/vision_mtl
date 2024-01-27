@@ -2,9 +2,7 @@
 
 
 import os
-import random
 import shutil
-import sys
 import tarfile
 import typing as t
 import zipfile
@@ -14,13 +12,13 @@ import numpy as np
 import requests
 import torch
 from PIL import Image
-from torch.utils.data import Dataset
 from torchvision.datasets.utils import download_url
 
 from vision_mtl.cfg import nyuv2_data_cfg as data_cfg
+from vision_mtl.data_modules.common_ds import MTLDataset
 
 
-class NYUv2(Dataset):
+class NYUv2(MTLDataset):
     """
     PyTorch wrapper for the NYUv2 dataset focused on multi-task learning.
     Data sources available: RGB, Semantic Segmentation, Surface Normals, Depth Images.
@@ -41,14 +39,13 @@ class NYUv2(Dataset):
     Conversion will happen automatically if transformation ends in a tensor.
     """
 
+    benchmark_idxs: list[int] = [647, 584, 169, 768]
+
     def __init__(
         self,
-        data_base_dir: str = data_cfg.data_dir,
         stage: str = "train",
+        data_base_dir: str = data_cfg.data_dir,
         download: bool = False,
-        use_rgb: bool = True,
-        use_seg: bool = True,
-        use_depth: bool = True,
         use_sn: bool = False,
         transforms: t.Any = data_cfg.train_transform,
         max_depth: float = data_cfg.max_depth,
@@ -68,20 +65,17 @@ class NYUv2(Dataset):
         transformation ends in a tensor, the result will be automatically converted
         to meters
         """
-        super().__init__()
-        self.root = data_base_dir
-
-        self.transform = transforms
-
-        self.use_rgb = use_rgb
-        self.use_seg = use_seg
-        self.use_depth = use_depth
-        self.use_sn = use_sn
 
         assert stage in ["train", "test"], "stage must be either train or test"
-        self.train = stage == "train"
-        self._split = stage
-        self.max_depth = max_depth
+
+        super().__init__(
+            stage=stage,
+            data_base_dir=data_base_dir,
+            max_depth=max_depth,
+            train_transform=transforms,
+            test_transform=transforms,
+        )
+        self.use_sn = use_sn
 
         if download:
             self.download()
@@ -92,75 +86,93 @@ class NYUv2(Dataset):
             )
 
         # rgb folder as ground truth
-        self._files = sorted(
-            os.listdir(os.path.join(data_base_dir, f"{self._split}_rgb"))
+        self.filenames = sorted(
+            os.listdir(os.path.join(data_base_dir, f"{self.stage}_rgb"))
         )
 
     def __getitem__(self, index: int):
-        folder = lambda name: os.path.join(self.root, f"{self._split}_{name}")
-        seed = random.randrange(sys.maxsize)
-        sample = {}
+        raw_sample = self.load_raw_sample(index)
 
-        apply_transform = self.transform is not None
-        if self.use_rgb:
-            random.seed(seed)
-            img = Image.open(os.path.join(folder("rgb"), self._files[index]))
-            if apply_transform:
-                img = self.transform(img)
-            else:
-                img = torch.from_numpy(np.array(img)).float() / 255
-            sample["img"] = img.float()
+        sample = self.prepare_sample(raw_sample, self.transform)
 
-        if self.use_seg:
-            random.seed(seed)
-            mask = Image.open(os.path.join(folder("seg13"), self._files[index]))
-            if apply_transform:
-                mask = self.transform(mask)
-            if isinstance(mask, torch.Tensor):
-                # ToTensor scales to [0, 1] by default
-                mask = mask * 255
-            else:
-                mask = torch.from_numpy(np.array(mask))
-            sample["mask"] = mask.squeeze().long()
+        return sample
 
-        if self.use_sn:
-            random.seed(seed)
-            normals = Image.open(os.path.join(folder("sn"), self._files[index]))
-            if apply_transform:
-                normals = self.transform(normals)
-            if not isinstance(normals, torch.Tensor):
-                normals = torch.from_numpy(np.array(normals))
+    def prepare_sample(self, raw_sample, transform=None):
+        img, mask, depth, normals = (
+            raw_sample["img"],
+            raw_sample["mask"],
+            raw_sample["depth"],
+            raw_sample.get("normals"),
+        )
+
+        apply_transform = transform is not None
+        if apply_transform:
+            img = transform(img)
+            mask = transform(mask)
+            depth = transform(depth)
+            if normals is not None:
+                normals = transform(normals)
+
+        img = self.convert_to_tensor(img)
+        mask = self.convert_to_tensor(mask)
+        depth = self.convert_to_tensor(depth)
+
+        if img.max() > 1.0:
+            img /= 255
+
+        if mask.max() <= 1.0:
+            # ToTensor transform scales to [0, 1] by default
+            mask = mask * 255
+        mask = mask.squeeze().long()
+
+        # depth png is uint16
+        depth = depth.float() / 1e4
+        depth = self.normalize_depth(depth)
+
+        if depth.shape[0] == 1:
+            depth = depth.permute(1, 2, 0)
+
+        sample = {"img": img, "mask": mask, "depth": depth}
+
+        if normals is not None:
+            normals = self.convert_to_tensor(normals)
             sample["normals"] = normals
 
-        if self.use_depth:
-            random.seed(seed)
-            depth = Image.open(os.path.join(folder("depth"), self._files[index]))
-            if apply_transform:
-                depth = self.transform(depth)
-            if not isinstance(depth, torch.Tensor):
-                depth = torch.from_numpy(np.array(depth))
+        return sample
 
-            # depth png is uint16
-            depth = depth.float() / 1e4
-            # normalize depth
-            if depth.max() > 1.0:
-                depth /= self.max_depth
+    def convert_to_tensor(self, x, dtype=torch.float32):
+        if not isinstance(x, torch.Tensor):
+            x = torch.from_numpy(x).to(dtype)
+        return x
 
-            if depth.shape[0] == 1:
-                depth = depth.permute(1, 2, 0)
+    def load_raw_sample(self, index: int) -> dict:
+        def get_folder(name):
+            return os.path.join(self.data_base_dir, f"{self.stage}_{name}")
 
-            sample["depth"] = depth
+        img = np.array(Image.open(os.path.join(get_folder("rgb"), self.filenames[index])))
+        mask = np.array(
+            Image.open(os.path.join(get_folder("seg13"), self.filenames[index]))
+        )
+        depth = np.array(
+            Image.open(os.path.join(get_folder("depth"), self.filenames[index]))
+        )
+        sample = {"img": img, "mask": mask, "depth": depth}
+        if self.use_sn:
+            normals = np.array(
+                Image.open(os.path.join(get_folder("sn"), self.filenames[index]))
+            )
+            sample["normals"] = normals
 
         return sample
 
     def __len__(self):
-        return len(self._files)
+        return len(self.filenames)
 
     def __repr__(self) -> str:
         fmt_str = f"Dataset {self.__class__.__name__}\n"
         fmt_str += f"    Number of data points: {self.__len__()}\n"
-        fmt_str += f"    Split: {self._split}\n"
-        fmt_str += f"    Root Location: {self.root}\n"
+        fmt_str += f"    Split: {self.stage}\n"
+        fmt_str += f"    Root Location: {self.data_base_dir}\n"
         tmp = "    Transforms: "
         fmt_str += "{0}{1}\n".format(
             tmp, self.transform.__repr__().replace("\n", "\n" + " " * len(tmp))
@@ -173,18 +185,11 @@ class NYUv2(Dataset):
         """
         try:
             for split in ["train", "test"]:
-                for part, part_is_used in zip(
-                    ["rgb", "seg13", "sn", "depth"],
-                    [
-                        self.use_rgb,
-                        self.use_seg,
-                        self.use_sn,
-                        self.use_depth,
-                    ],
-                ):
-                    if not part_is_used:
-                        continue
-                    path = os.path.join(self.root, f"{split}_{part}")
+                inputs = ["rgb", "seg13", "depth"]
+                if self.use_sn:
+                    inputs.append("sn")
+                for part in inputs:
+                    path = os.path.join(self.data_base_dir, f"{split}_{part}")
                     if not os.path.exists(path):
                         raise FileNotFoundError("Missing Folder")
         except FileNotFoundError:
@@ -194,19 +199,12 @@ class NYUv2(Dataset):
     def download(self):
         if self._check_exists():
             return
-        if self.use_rgb:
-            download_rgb(self.root)
-        if self.use_seg:
-            download_seg(self.root)
+        download_rgb(self.data_base_dir)
+        download_seg(self.data_base_dir)
+        download_depth(self.data_base_dir)
         if self.use_sn:
-            download_sn(self.root)
-        if self.use_depth:
-            download_depth(self.root)
+            download_sn(self.data_base_dir)
         print("Done!")
-
-    def load_benchmark_batch(self) -> t.Optional[dict]:
-        """This dataset does not provide a benchmark batch for now."""
-        return None
 
 
 def download_rgb(root: str):
@@ -306,7 +304,7 @@ def _unpack(file: str):
         zip.close()
 
 
-def _rename_files(folder: str, rename_func: callable):
+def _rename_files(folder: str, rename_func: t.Callable):
     """
     Renames all files inside a folder based on the passed rename function
     :param folder: path to folder that contains files
@@ -353,10 +351,7 @@ if __name__ == "__main__":
     train_ds = NYUv2(
         data_base_dir=data_dir_root,
         download=True,
-        train=True,
-        use_rgb=True,
-        use_seg=True,
-        use_depth=True,
+        stage="train",
         use_sn=False,
     )
     print(train_ds)
