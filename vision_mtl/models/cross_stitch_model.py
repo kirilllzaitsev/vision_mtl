@@ -9,7 +9,7 @@ from vision_mtl.models.model_utils import (
     concat_slightly_diff_sized_tensors,
     get_joint_layer_names_before_stitch_for_unet,
 )
-from vision_mtl.utils import get_module_by_name
+from vision_mtl.utils.utils import get_module_by_name
 
 
 class CrossStitchLayer(nn.Module):

@@ -27,7 +27,7 @@ from tqdm import tqdm
 from vision_mtl.cfg import DataConfig, cfg
 from vision_mtl.lit_datamodule import CityscapesDataModule
 from vision_mtl.lit_module import MTLModule
-from vision_mtl.pipeline_utils import (
+from vision_mtl.utils.pipeline_utils import (
     build_model,
     create_tracking_exp,
     fetch_data_cfg,
@@ -38,8 +38,8 @@ from vision_mtl.pipeline_utils import (
     save_ckpt,
     summarize_epoch_metrics,
 )
-from vision_mtl.utils import parse_args
-from vision_mtl.vis_utils import plot_preds
+from vision_mtl.utils.utils import parse_args
+from vision_mtl.utils.vis_utils import plot_preds
 
 
 def run_pipe(

@@ -1,7 +1,6 @@
 import os
 import re
 import typing as t
-from pathlib import Path
 
 from comet_ml.api import API
 
