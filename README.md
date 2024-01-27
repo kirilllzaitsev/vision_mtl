@@ -223,7 +223,7 @@ where:
 - HS_tuned_loss_weights: hard parameter sharing with pretrained weights and optimized loss scales
 
 Quaitatively, a single prediction on the validation set of Cityscapes looks like this:
-![Cityscapes prediction](cityscapes_sample_preds.png)
+![Cityscapes prediction](assets/cityscapes_sample_preds.png)
 
 MTAN and pretrained hard parameter sharing model achieved comparable results and consistently outperformed other models. MTAN performs best on all the metrics related to semantic segmentation, but shows the worst performance on the depth estimation task. This indicates that the default task balancing strategy (loss weights, capacity of task-specific subnetworks) is suboptimal for this model. Hard parameter sharing models perform better than the soft parameter sharing model in terms of all the metrics. The tuned hard parameter sharing model performs better on depth estimation (and segmentation) than a vanilla one, although the optimization objective included only accuracy on the segmentation task.
 
@@ -238,7 +238,7 @@ Aggregated metrics obtained on the validation set of `NYUv2`:
 | MAE           |                  **0.049** |   0.05  |         0.079 |   0.083 |  0.073 |
 
 Qualitatively, for a random sample from the validation set:
-![NYUv2 prediction](nyuv2_sample_preds.png)
+![NYUv2 prediction](assets/nyuv2_sample_preds.png)
 
 Contrary to the previous case, the best performance on NYUv2 is achieved by the hard parameter sharing models with and without pretraining, as both models arrived at numbers with negligible difference. MTAN is the runner-up with a substantial drop in the metrics related to depth estimation. Since it was also worse in the MAE for Cityscapes, balancing out segmentation and depth, e.g., via loss weighting, could lead to an improvement. The HS network trained with tuned loss weights performs better than the vanilla one which is in line with the results on Cityscapes.
 
