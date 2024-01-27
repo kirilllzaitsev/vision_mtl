@@ -158,5 +158,7 @@ class PipelineConfig:
             )
 
 
+cityscapes_data_cfg = CityscapesConfig()
+nyuv2_data_cfg = NYUv2Config()
+
 cfg = PipelineConfig()
-cfg.load_data_cfg(os.environ["dataset_name"])
