@@ -208,6 +208,10 @@ class NYUv2(Dataset):
             download_depth(self.root)
         print("Done!")
 
+    def load_benchmark_batch(self) -> t.Optional[dict]:
+        """This dataset does not provide a benchmark batch for now."""
+        return None
+
 
 def download_rgb(root: str):
     train_url = "http://www.doc.ic.ac.uk/~ahanda/nyu_train_rgb.tgz"
