@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from pytorch_lightning.loggers import TensorBoardLogger
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 from vision_mtl.cfg import DataConfig, cfg
 from vision_mtl.lit_datamodule import CityscapesDataModule
@@ -103,7 +103,7 @@ def run_pipe(
 
             global_step += 1
 
-        train_epoch_metrics = summarize_epoch_metrics(module.step_outputs[stage])
+        train_epoch_metrics = module.on_train_epoch_end()
         for k, v in train_epoch_metrics.items():
             epoch_metrics[stage][k].append(v)
         pbar_postfix = print_metrics(f"epoch/{stage}", train_epoch_metrics)
@@ -148,7 +148,7 @@ def run_pipe(
 
                     val_step += 1
 
-            val_epoch_metrics = summarize_epoch_metrics(module.step_outputs[stage])
+            val_epoch_metrics = module.on_validation_epoch_end()
             for k, v in val_epoch_metrics.items():
                 epoch_metrics[stage][k].append(v)
             pbar_postfix = print_metrics(f"epoch/{stage}", val_epoch_metrics)
@@ -216,7 +216,9 @@ def predict(
 def init_model(args: argparse.Namespace, data_cfg: DataConfig) -> MTLModule:
     """Initialize model and load checkpoint if specified in args."""
     model = build_model(args, data_cfg)
-    module = MTLModule(model=model, num_classes=data_cfg.num_classes, lr=args.lr)
+    module = MTLModule(
+        model=model, num_classes=data_cfg.num_classes, lr=args.lr, device=args.device
+    )
     if args.ckpt_dir:
         module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
     return module

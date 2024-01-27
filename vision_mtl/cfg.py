@@ -1,5 +1,6 @@
 """Contains utility classes to control the pipeline."""
 
+import argparse
 import os
 import typing as t
 from pathlib import Path
@@ -142,11 +143,13 @@ class NYUv2Config(DataConfig):
     train_transform: transforms.Compose = transforms.Compose(
         [
             transforms.ToTensor(),
+            transforms.Resize((256, 256), antialias=True),
         ]
     )
     test_transform: transforms.Compose = transforms.Compose(
         [
             transforms.ToTensor(),
+            transforms.Resize((256, 256), antialias=True),
         ]
     )
 
