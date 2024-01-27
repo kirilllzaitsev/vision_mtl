@@ -189,17 +189,15 @@ class PipelineConfig:
     debug: bool = False
     seed: int = 11
 
-    log_root_dir = Path(__file__).parent.parent / "lightning_logs"
+    log_root_dir = root_dir / "lightning_logs"
 
-    def load_data_cfg(self, ds_name: str) -> None:
-        if ds_name == "cityscapes":
-            self.data = CityscapesConfig()
-        elif ds_name == "nyuv2":
-            self.data = NYUv2Config()
-        else:
-            raise ValueError(
-                f"Unknown dataset name: {ds_name}. Please use one of: cityscapes, nyuv2"
-            )
+    def update_fields_with_args(self, args: argparse.Namespace):
+        """Update the config fields with the parsed arguments."""
+        for k, v in vars(args).items():
+            if k in ["model", "logger", "vis", "data"]:
+                continue
+            if hasattr(self, k):
+                setattr(self, k, v)
 
 
 cityscapes_data_cfg = CityscapesConfig()
