@@ -4,7 +4,7 @@ from vision_mtl.cfg import cfg
 from vision_mtl.inference_utils import get_segm_preds
 from vision_mtl.lit_datamodule import CityscapesDataModule
 from vision_mtl.loss_utils import calc_loss
-from vision_mtl.pipeline_utils import build_model, summarize_epoch_metrics
+from vision_mtl.pipeline_utils import build_model, fetch_data_cfg, summarize_epoch_metrics
 from vision_mtl.utils import parse_args
 from vision_mtl.vis_utils import plot_preds
 
@@ -31,7 +31,7 @@ def train_model(
     optimizer,
     num_epochs,
     device,
-    num_classes=cfg.data.num_classes,
+    num_classes,
 ):
     model.to(device)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -182,11 +182,12 @@ def train_model(
         scheduler.step(val_loss)
 
 
-model = build_model(args)
+data_cfg = fetch_data_cfg(args.dataset_name)
+model = build_model(args, data_cfg)
 
 # Datamodule
 datamodule = CityscapesDataModule(
-    data_base_dir=cfg.data.data_dir,
+    dataset_name=args.dataset_name,
     batch_size=args.batch_size,
     do_overfit=args.do_overfit,
 )
@@ -201,6 +202,7 @@ train_model(
     optimizer,
     args.num_epochs,
     cfg.device,
+    data_cfg.num_classes,
 )
 
 

@@ -24,12 +24,13 @@ import torch
 from pytorch_lightning.loggers import TensorBoardLogger
 from tqdm.auto import tqdm
 
-from vision_mtl.cfg import cfg
+from vision_mtl.cfg import DataConfig, cfg
 from vision_mtl.lit_datamodule import CityscapesDataModule
 from vision_mtl.lit_module import MTLModule
 from vision_mtl.pipeline_utils import (
     build_model,
     create_tracking_exp,
+    fetch_data_cfg,
     load_ckpt_model,
     log_args,
     log_params_to_exp,
@@ -212,23 +213,25 @@ def predict(
     return preds, predict_metrics
 
 
-def init_model(args: argparse.Namespace) -> MTLModule:
+def init_model(args: argparse.Namespace, data_cfg: DataConfig) -> MTLModule:
     """Initialize model and load checkpoint if specified in args."""
-    model = build_model(args)
-    module = MTLModule(model=model, lr=args.lr)
+    model = build_model(args, data_cfg)
+    module = MTLModule(model=model, num_classes=data_cfg.num_classes, lr=args.lr)
     if args.ckpt_dir:
         module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
     return module
 
 
-def optuna_objective(trial: optuna.Trial, args: argparse.Namespace) -> float:
+def optuna_objective(
+    trial: optuna.Trial, args: argparse.Namespace, data_cfg: DataConfig
+) -> float:
     """Optuna objective function that is evaluated at each trial. Returns the validation accuracy."""
     param_keys = ["loss_segm_weight", "loss_depth_weight"]
     loss_weights = {k: trial.suggest_float(k, 0.0, 1.0) for k in param_keys}
 
     args = update_args(args, loss_weights)
 
-    main_components = create_main_components(init_model, args)
+    main_components = create_main_components(init_model, args, data_cfg)
     datamodule = main_components["datamodule"]
     module = main_components["module"]
 
@@ -251,7 +254,7 @@ def optuna_objective(trial: optuna.Trial, args: argparse.Namespace) -> float:
     return np.mean(fit_metrics["val"]["accuracy"])
 
 
-def run_study(args: argparse.Namespace) -> t.Dict[str, float]:
+def run_study(args: argparse.Namespace, data_cfg: DataConfig) -> t.Dict[str, float]:
     """Run optuna study to find best hyperparameters. In this case, it picks those that maximize the validation accuracy."""
 
     pruner: optuna.pruners.BasePruner = optuna.pruners.MedianPruner()
@@ -260,7 +263,7 @@ def run_study(args: argparse.Namespace) -> t.Dict[str, float]:
     args = copy.deepcopy(args)
     args.num_epochs = 3
 
-    objective = functools.partial(optuna_objective, args=args)
+    objective = functools.partial(optuna_objective, args=args, data_cfg=data_cfg)
     study.optimize(objective, n_trials=args.n_trials, timeout=None, n_jobs=args.n_jobs)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
@@ -297,7 +300,7 @@ def create_tools(args: argparse.Namespace) -> t.Dict[str, t.Any]:
         vars(args),
         "args",
     )
-    extra_tags = [args.model_name]
+    extra_tags = [args.model_name, args.dataset_name]
     exp.add_tags(extra_tags + args.exp_tags)
 
     log_subdir_name = f"training-{args.model_name}"
@@ -312,17 +315,21 @@ def create_tools(args: argparse.Namespace) -> t.Dict[str, t.Any]:
     }
 
 
-def create_main_components(init_model: t.Callable, args: argparse.Namespace):
+def create_main_components(
+    init_model: t.Callable, args: argparse.Namespace, data_cfg: DataConfig
+) -> t.Dict[str, t.Any]:
     """Create datamodule and model."""
     datamodule = CityscapesDataModule(
-        data_base_dir=cfg.data.data_dir,
+        dataset_name=args.dataset_name,
         batch_size=args.batch_size,
         do_overfit=args.do_overfit,
         num_workers=args.num_workers,
+        train_transform=data_cfg.train_transform,
+        test_transform=data_cfg.test_transform,
     )
     datamodule.setup()
 
-    module = init_model(args)
+    module = init_model(args, data_cfg)
     return {
         "datamodule": datamodule,
         "module": module,
@@ -342,12 +349,13 @@ def update_args(
 if __name__ == "__main__":
     args = parse_args()
 
-    main_components = create_main_components(init_model, args)
+    data_cfg = fetch_data_cfg(args.dataset_name)
+    main_components = create_main_components(init_model, args, data_cfg)
     datamodule = main_components["datamodule"]
     module = main_components["module"]
 
     if args.do_optimize:
-        optimal_params = run_study(args)
+        optimal_params = run_study(args, data_cfg)
         update_args(args, optimal_params)
         args.exp_tags += ["best_trial"]
 
@@ -355,7 +363,7 @@ if __name__ == "__main__":
     exp = tools["exp"]
     logger = tools["logger"]
 
-    main_components = create_main_components(init_model, args)
+    main_components = create_main_components(init_model, args, data_cfg)
     datamodule = main_components["datamodule"]
     module = main_components["module"]
 

@@ -9,7 +9,7 @@ import comet_ml
 import torch
 import yaml
 
-from vision_mtl.cfg import cfg
+from vision_mtl.cfg import DataConfig, cfg, cityscapes_data_cfg, nyuv2_data_cfg
 from vision_mtl.models.basic_model import BasicMTLModel
 from vision_mtl.models.cross_stitch_model import CSNet
 from vision_mtl.models.model_utils import get_model_with_dense_preds
@@ -17,13 +17,14 @@ from vision_mtl.models.mtan_model import MTANMiniUnet
 
 
 def build_model(
-    args: argparse.Namespace,
+    args: argparse.Namespace, data_cfg: DataConfig
 ) -> t.Union[BasicMTLModel, MTANMiniUnet, CSNet]:
     """Instantiate a model based on the args. The models are aligned with each other in terms of the number of parameters."""
 
     if args.model_name == "basic":
         # basic
         model = BasicMTLModel(
+            segm_classes=data_cfg.num_classes,
             decoder_first_channel=540,
             num_decoder_layers=5,
             encoder_weights=getattr(
@@ -36,7 +37,7 @@ def build_model(
         # MTAN
         map_tasks_to_num_channels = {
             "depth": 1,
-            "segm": cfg.data.num_classes,
+            "segm": data_cfg.num_classes,
         }
         model = MTANMiniUnet(
             in_channels=3,
@@ -58,7 +59,7 @@ def build_model(
                 segm_classes=1, activation=None, backbone_params=backbone_params
             ),
             "segm": get_model_with_dense_preds(
-                segm_classes=cfg.data.num_classes,
+                segm_classes=data_cfg.num_classes,
                 activation=None,
                 backbone_params=backbone_params,
             ),
@@ -115,7 +116,7 @@ def print_metrics(prefix: str, train_epoch_metrics: dict) -> str:
 def save_ckpt(
     module: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler._LRScheduler,
+    scheduler: t.Any,
     epoch: int,
     save_path_model: str,
     save_path_session: str,
@@ -259,3 +260,12 @@ def create_tracking_exp(
     )
 
     return experiment
+
+
+def fetch_data_cfg(dS_name: str) -> DataConfig:
+    if dS_name == "cityscapes":
+        return cityscapes_data_cfg
+    elif dS_name == "nyuv2":
+        return nyuv2_data_cfg
+    else:
+        raise ValueError(f"Unknown dataset name {dS_name}")
