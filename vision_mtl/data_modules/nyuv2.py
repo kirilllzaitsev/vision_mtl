@@ -6,6 +6,7 @@ import random
 import shutil
 import sys
 import tarfile
+import typing as t
 import zipfile
 
 import h5py
@@ -100,11 +101,12 @@ class NYUv2(Dataset):
         seed = random.randrange(sys.maxsize)
         sample = {}
 
+        apply_transform = self.transform is not None
         if self.use_rgb:
             random.seed(seed)
             img = Image.open(os.path.join(folder("rgb"), self._files[index]))
-            if self.rgb_transform is not None:
-                img = self.rgb_transform(img)
+            if apply_transform:
+                img = self.transform(img)
             else:
                 img = torch.from_numpy(np.array(img)).float() / 255
             sample["img"] = img.float()
@@ -112,34 +114,40 @@ class NYUv2(Dataset):
         if self.use_seg:
             random.seed(seed)
             mask = Image.open(os.path.join(folder("seg13"), self._files[index]))
-            if self.seg_transform is not None:
-                mask = self.seg_transform(mask)
+            if apply_transform:
+                mask = self.transform(mask)
             if isinstance(mask, torch.Tensor):
                 # ToTensor scales to [0, 1] by default
-                mask = (mask * 255).long()
-            sample["mask"] = mask
+                mask = mask * 255
+            else:
+                mask = torch.from_numpy(np.array(mask))
+            sample["mask"] = mask.squeeze().long()
 
         if self.use_sn:
             random.seed(seed)
             normals = Image.open(os.path.join(folder("sn"), self._files[index]))
-            if self.sn_transform is not None:
-                normals = self.sn_transform(normals)
+            if apply_transform:
+                normals = self.transform(normals)
+            if not isinstance(normals, torch.Tensor):
+                normals = torch.from_numpy(np.array(normals))
             sample["normals"] = normals
 
         if self.use_depth:
             random.seed(seed)
             depth = Image.open(os.path.join(folder("depth"), self._files[index]))
-            if self.depth_transform is not None:
-                depth = self.depth_transform(depth)
-            if isinstance(depth, torch.Tensor):
-                # depth png is uint16
-                depth = depth.float() / 1e4
-            else:
+            if apply_transform:
+                depth = self.transform(depth)
+            if not isinstance(depth, torch.Tensor):
                 depth = torch.from_numpy(np.array(depth))
 
+            # depth png is uint16
+            depth = depth.float() / 1e4
             # normalize depth
             if depth.max() > 1.0:
                 depth /= self.max_depth
+
+            if depth.shape[0] == 1:
+                depth = depth.permute(1, 2, 0)
 
             sample["depth"] = depth
 
@@ -153,21 +161,9 @@ class NYUv2(Dataset):
         fmt_str += f"    Number of data points: {self.__len__()}\n"
         fmt_str += f"    Split: {self._split}\n"
         fmt_str += f"    Root Location: {self.root}\n"
-        tmp = "    RGB Transforms: "
+        tmp = "    Transforms: "
         fmt_str += "{0}{1}\n".format(
-            tmp, self.rgb_transform.__repr__().replace("\n", "\n" + " " * len(tmp))
-        )
-        tmp = "    Seg Transforms: "
-        fmt_str += "{0}{1}\n".format(
-            tmp, self.seg_transform.__repr__().replace("\n", "\n" + " " * len(tmp))
-        )
-        tmp = "    SN Transforms: "
-        fmt_str += "{0}{1}\n".format(
-            tmp, self.sn_transform.__repr__().replace("\n", "\n" + " " * len(tmp))
-        )
-        tmp = "    Depth Transforms: "
-        fmt_str += "{0}{1}\n".format(
-            tmp, self.depth_transform.__repr__().replace("\n", "\n" + " " * len(tmp))
+            tmp, self.transform.__repr__().replace("\n", "\n" + " " * len(tmp))
         )
         return fmt_str
 
@@ -177,40 +173,36 @@ class NYUv2(Dataset):
         """
         try:
             for split in ["train", "test"]:
-                for part, transform in zip(
+                for part, part_is_used in zip(
                     ["rgb", "seg13", "sn", "depth"],
                     [
-                        self.rgb_transform,
-                        self.seg_transform,
-                        self.sn_transform,
-                        self.depth_transform,
+                        self.use_rgb,
+                        self.use_seg,
+                        self.use_sn,
+                        self.use_depth,
                     ],
                 ):
-                    if transform is None:
+                    if not part_is_used:
                         continue
                     path = os.path.join(self.root, f"{split}_{part}")
                     if not os.path.exists(path):
                         raise FileNotFoundError("Missing Folder")
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             return False
         return True
 
     def download(self):
         if self._check_exists():
             return
-        if self.rgb_transform is not None:
+        if self.use_rgb:
             download_rgb(self.root)
-        if self.seg_transform is not None:
+        if self.use_seg:
             download_seg(self.root)
-        if self.sn_transform is not None:
+        if self.use_sn:
             download_sn(self.root)
-        if self.depth_transform is not None:
+        if self.use_depth:
             download_depth(self.root)
         print("Done!")
-
-    def load_benchmark_batch(self) -> t.Optional[dict]:
-        """This dataset does not provide a benchmark batch for now."""
-        return None
 
 
 def download_rgb(root: str):
