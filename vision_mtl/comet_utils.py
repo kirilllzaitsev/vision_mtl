@@ -10,23 +10,23 @@ from vision_mtl.cfg import cfg
 model_to_exp_name = {
     "basic_non_pretrained": {
         "cityscapes": "supreme_dog_1028",
-        "nyuv2": "invisible_elephant_6286",
+        "nyuv2": "primary_heron_824",
     },
     "basic": {
         "cityscapes": "institutional_termite_879",
-        "nyuv2": "academic_hare_5380",
+        "nyuv2": "stingy_grain_193",
     },
     "basic_tuned": {
-        "cityscapes": "sudden_redshift_9378",
-        "nyuv2": "smart_raisin_338",
+        "cityscapes": "amber_guan_4288",
+        "nyuv2": "legitimate_piranha_6638",
     },
     "csnet": {
-        "cityscapes": "administrative_omega_4076",
-        "nyuv2": "familiar_wildfowl_1173",
+        "cityscapes": "sensitive_berm_7799",
+        "nyuv2": "historic_shrub_7311",
     },
     "mtan": {
         "cityscapes": "white_spice_5973",
-        "nyuv2": "industrial_runoff_5570",
+        "nyuv2": "valid_preservative_4767",
     },
 }
 
