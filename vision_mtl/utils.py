@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
         "--dataset_name", choices=["cityscapes", "nyuv2"], default="cityscapes"
     )
     parser.add_argument("--backbone_weights", choices=["imagenet"])
+    parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--lr", type=float, default=5e-3)
     parser.add_argument("--loss_segm_weight", type=float, default=1)
     parser.add_argument("--loss_depth_weight", type=float, default=1)

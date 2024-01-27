@@ -348,6 +348,7 @@ def update_args(
 
 if __name__ == "__main__":
     args = parse_args()
+    cfg.update_fields_with_args(args)
 
     data_cfg = fetch_data_cfg(args.dataset_name)
     main_components = create_main_components(init_model, args, data_cfg)
