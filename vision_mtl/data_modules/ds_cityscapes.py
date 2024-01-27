@@ -1,21 +1,20 @@
 import os
 import typing as t
-from typing import Any
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from vision_mtl.cfg import cfg
+from vision_mtl.cfg import cityscapes_data_cfg as data_cfg
 
 
 class CityscapesDataset(Dataset):
     def __init__(
         self,
         stage: str,
-        data_base_dir: str = cfg.data.data_dir,
-        transforms: Any = None,
-        max_depth: float = cfg.data.max_depth,
+        data_base_dir: str = data_cfg.data_dir,
+        transforms: t.Any = data_cfg.train_transform,
+        max_depth: float = data_cfg.max_depth,
     ):
         self.data_base_dir = data_base_dir
         self.transforms = transforms
@@ -35,7 +34,7 @@ class CityscapesDataset(Dataset):
         img = np.load(data_path)
         assert img.max() <= 1.0
         mask = np.load(mask_path)
-        mask[mask == -1] = cfg.data.num_classes - 1
+        mask[mask == -1] = data_cfg.num_classes - 1
         depth = np.load(depth_path)
         if self.transforms:
             transformed = self.transforms(image=img, mask=mask)
@@ -76,8 +75,8 @@ class CityscapesDataset(Dataset):
         return dict_paths
 
     def load_benchmark_batch(self) -> t.Optional[dict]:
-        if os.path.exists(cfg.data.benchmark_batch_path):
-            batch = torch.load(cfg.data.benchmark_batch_path)
+        if os.path.exists(data_cfg.benchmark_batch_path):
+            batch = torch.load(data_cfg.benchmark_batch_path)
         else:
             batch = None
         return batch

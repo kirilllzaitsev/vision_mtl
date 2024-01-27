@@ -14,11 +14,9 @@ import requests
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from torchvision import transforms
 from torchvision.datasets.utils import download_url
 
-from vision_mtl.cfg import cfg
-from vision_mtl.data_modules.transforms import nyuv2_transform
+from vision_mtl.cfg import nyuv2_data_cfg as data_cfg
 
 
 class NYUv2(Dataset):
@@ -44,18 +42,15 @@ class NYUv2(Dataset):
 
     def __init__(
         self,
-        data_base_dir: str = cfg.data.data_dir,
-        train: bool = True,
+        data_base_dir: str = data_cfg.data_dir,
+        stage: str = "train",
         download: bool = False,
         use_rgb: bool = True,
         use_seg: bool = True,
         use_depth: bool = True,
         use_sn: bool = False,
-        rgb_transform: transforms.Compose = nyuv2_transform,
-        seg_transform: transforms.Compose = nyuv2_transform,
-        sn_transform: transforms.Compose = nyuv2_transform,
-        depth_transform: transforms.Compose = nyuv2_transform,
-        max_depth: float = cfg.data.max_depth,
+        transforms: t.Any = data_cfg.train_transform,
+        max_depth: float = data_cfg.max_depth,
     ):
         """
         Will return tuples based on what data source has been enabled (rgb, seg etc).
@@ -75,18 +70,16 @@ class NYUv2(Dataset):
         super().__init__()
         self.root = data_base_dir
 
-        self.rgb_transform = rgb_transform
-        self.seg_transform = seg_transform
-        self.sn_transform = sn_transform
-        self.depth_transform = depth_transform
+        self.transform = transforms
 
         self.use_rgb = use_rgb
         self.use_seg = use_seg
         self.use_depth = use_depth
         self.use_sn = use_sn
 
-        self.train = train
-        self._split = "train" if train else "test"
+        assert stage in ["train", "test"], "stage must be either train or test"
+        self.train = stage == "train"
+        self._split = stage
         self.max_depth = max_depth
 
         if download:
