@@ -153,6 +153,59 @@ Weights of the trained models as well as CLI arguments for training are availabl
 
 An example on how to use these artifacts can be found in `notebooks/get_model_metrics.ipynb`.
 
+To load a pretrained model and make predictions, the following code can serve as a reference:
+
+```
+import yaml
+import argparse
+from pathlib import Path
+
+from vision_mtl.lit_module import MTLModule
+from vision_mtl.utils.pipeline_utils import build_model, load_ckpt_model, fetch_data_cfg
+from vision_mtl.cfg import root_dir
+from vision_mtl.lit_datamodule import MTLDataModule
+from vision_mtl.training_lit import predict
+
+artifacts = {
+    "checkpoint_path": f"{root_dir}/artifacts/mtan/model_19.pt",
+    "args_path": f"{root_dir}/artifacts/mtan/train_args.yaml",
+}
+args = argparse.Namespace(
+    **yaml.safe_load(
+        open(
+            artifacts["args_path"],
+            "r",
+        )
+    )["args"]
+)
+data_cfg = fetch_data_cfg(args.dataset_name)
+
+model = build_model(args, data_cfg)
+module = MTLModule(model=model, num_classes=data_cfg.num_classes)
+
+model_ckpt = load_ckpt_model(Path(artifacts["checkpoint_path"]).parent)
+module.load_state_dict(model_ckpt["model"])
+
+datamodule = MTLDataModule(
+    dataset_name=args.dataset_name,
+    batch_size=args.batch_size,
+    train_transform=data_cfg.train_transform,
+    test_transform=data_cfg.test_transform,
+    num_workers=0,
+)
+datamodule.setup()
+
+preds, predict_metrics = predict(
+    datamodule.predict_dataloader(),
+    module,
+    "cuda:0",
+    do_plot_preds=False,
+    do_show_preds=True,
+)
+```
+
+### Performance
+
 Aggregated metrics obtained on the validation set of `Cityscapes`:
 
 | Metrics       |   HS | HS (P) |   HS_tuned_loss_weights (P) |   CSNet (P) |   MTAN |
