@@ -8,11 +8,26 @@ from comet_ml.api import API
 from vision_mtl.cfg import cfg
 
 model_to_exp_name = {
-    "basic_non_pretrained": "supreme_dog_1028",
-    "basic": "institutional_termite_879",
-    "basic_tuned": "sudden_redshift_9378",
-    "csnet": "administrative_omega_4076",
-    "mtan": "white_spice_5973",
+    "basic_non_pretrained": {
+        "cityscapes": "supreme_dog_1028",
+        "nyuv2": "invisible_elephant_6286",
+    },
+    "basic": {
+        "cityscapes": "institutional_termite_879",
+        "nyuv2": "academic_hare_5380",
+    },
+    "basic_tuned": {
+        "cityscapes": "sudden_redshift_9378",
+        "nyuv2": "smart_raisin_338",
+    },
+    "csnet": {
+        "cityscapes": "administrative_omega_4076",
+        "nyuv2": "familiar_wildfowl_1173",
+    },
+    "mtan": {
+        "cityscapes": "white_spice_5973",
+        "nyuv2": "industrial_runoff_5570",
+    },
 }
 
 
