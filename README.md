@@ -19,7 +19,7 @@ The models are trained and evaluated on the following datasets:
 - [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) downloaded from multiple sources (see `data_modules/nyuv2.py` and the [original loader](https://github.com/xapharius/pytorch-nyuv2/tree/master))
 
 The chosen tasks are **semantic segmentation** and **depth estimation**. Both tasks are formulated as a dense prediction problem, where the prediction is of the same spatial dimensions as the input image. Semantic segmentation is a pixel-wise classification problem, where each pixel is assigned a class label without considering different instances of the same class.
-In depth estimation the network solves a pixel-wise regression problem, where each pixel is assigned a depth value from a predefined continuous range.
+In depth estimation, the network solves a pixel-wise regression problem, where each pixel is assigned a depth value from a predefined continuous range.
 
 ### Cityscapes
 
@@ -55,13 +55,13 @@ comet_api_key=your_comet_api_key
 comet_username=your_comet_username
 ```
 
-## Imlementation details
+## Implementation details
 
 ### Training
 
 The models are implemented in PyTorch. They are trained and evaluated on the task of semantic segmentation and depth estimation. A single GPU with 8Gb of memory is used for the experiments. The models are wrapped in the module from PyTorch Lightning, but due to this [issue](https://github.com/Lightning-AI/pytorch-lightning/issues/19216) the optimization loop is manual instead of using the `Trainer` from this library.
 
-Entry point for the pipeline is `training_lit.py`. `utils.py` contains arguments for the command line.
+The entry point for the pipeline is `training_lit.py`. `utils.py` contains arguments for the command line.
 
 To train a hard parameter sharing model ("basic") with weights pretrained on Imagenet, a sample command could be:
 
@@ -99,7 +99,7 @@ The models are not tailored to match the performance claimed in the original pap
 
 #### Hard parameter sharing
 
-Hard parameter sharing denotes MTL methods where a large portion of the network is shared between tasks and each task defines its own output layers. The shared part - the backbone - is forced to learn a generalizable representation that is useful for all tasks at once, while individual task heads ensure specialization for each task.
+Hard parameter sharing denotes MTL methods where a large portion of the network is shared between tasks and each task defines its output layers. The shared part - the backbone - is forced to learn a generalizable representation that is useful for all tasks at once, while individual task heads ensure specialization for each task.
 
 A basic model that shares the backbone between the tasks and has shallow one-layer heads for each task to get task-specific predictions.
 
@@ -111,7 +111,7 @@ Files:
 
 #### Hard parameter sharing with tuned loss weights
 
-To increase the performance of an MTL model, one can try to optimize the loss weights that scale contributions of individual tasks to the total loss. One of the methods for this hyperparameter tuning could be Bayesian optimization. The proxy objective in this case is to maximize the mean accuracy on the semantic segmentation task on the validation set. There are 15 trials, each trial lasting for three training epochs.
+To increase the performance of an MTL model, one can try to optimize the loss weights that scale the contributions of individual tasks to the total loss. One of the methods for this hyperparameter tuning could be Bayesian optimization. The proxy objective in this case is to maximize the mean accuracy of the semantic segmentation task on the validation set. There are 15 trials, each trial lasting for three training epochs.
 
 Files:
 
@@ -119,11 +119,11 @@ Files:
 
 #### Soft parameter sharing
 
-Soft parameter sharing in MTL refers to a method where each task has its own set of parameters, but these sets are regularized to be similar to each other. The objective is to allow each task to learn its own specialized representation while still benefiting from the knowledge contained in other tasks. This approach contrasts with hard parameter sharing, where tasks directly share a common set of parameters.
+Soft parameter sharing in MTL refers to a method where each task has its own set of parameters, but these sets are regularized to be similar to each other. The objective is to allow each task to learn its specialized representation while still benefiting from the knowledge contained in other tasks. This approach contrasts with hard parameter sharing, where tasks directly share a common set of parameters.
 
 The implemented model is based on the Cross-Stitch Networks architecture. It implements both channel-wise and layer-wise cross-stitching.
 
-Embedding cross-stitching units in an architecture for MTL allows bypassing expensive architecture search for the best way to share parameters between tasks. In the end-to-end training, the cross-stitching units learn to share information between tasks at different levels of the network. Layer-wise stitching defines a linear combination of the activations of the tasks at a given layer, while channel-wise stitching works at the more granular level of channels. Visual representation of the stitching idea is shown in [2].
+Embedding cross-stitching units in an architecture for MTL allows bypassing expensive architecture search for the best way to share parameters between tasks. In the end-to-end training, the cross-stitching units learn to share information between tasks at different levels of the network. Layer-wise stitching defines a linear combination of the activations of the tasks at a given layer, while channel-wise stitching works at the more granular level of channels. A visual representation of the stitching idea is shown in [2].
 
 The model consists of networks for each task and cross-stitching units that connect them. The backbone is the `timm-mobilenetv3_large_100` model with weights pretrained on Imagenet.
 
@@ -133,9 +133,9 @@ Files:
 
 #### Modulation & adapters
 
-The model is based on the MTAN (Multi-Task Attention Network) architecture. Every task has its own subnetwork which can be viewed as a task-specific feature extractor that receives as input weights from the main network which is a global feature extractor. This approach promotes generalizability in the global network, while learning high-quality task-specific features [5].
+The model is based on the MTAN (Multi-Task Attention Network) architecture. Every task has its subnetwork which can be viewed as a task-specific feature extractor that receives as input weights from the main network which is a global feature extractor. This approach promotes generalizability in the global network while learning high-quality task-specific features [5].
 
-The model is built with a custom UNet backbone inspired by [3]. Please refer to [4] for the official implementation.
+The model is built with a custom UNet backbone inspired by [3]. To get the task-specific outputs, 1x1 convolutional kernels are applied to the final feature map for each task. Please refer to [4] for the official implementation.
 
 Files:
 
@@ -151,7 +151,7 @@ Weights of the trained models as well as CLI arguments for training are availabl
 |:---|:---:|:---:|
 | Artifacts link | [Google Drive](https://drive.google.com/drive/folders/1mYasCMG0rRmwL89hDWKKnIuDp4oi64vu?usp=sharing) | [Google Drive](https://drive.google.com/drive/folders/1lY0gtYrb8deWwzfkIn4M5NpOOYPKuxI4?usp=sharing)
 
-An example on how to use these artifacts can be found in `notebooks/get_model_metrics.ipynb`.
+An example of how to use these artifacts can be found in `notebooks/get_model_metrics.ipynb`.
 
 To load a pretrained model and make predictions, the following code can serve as a reference:
 
@@ -222,10 +222,10 @@ where:
 - HS: hard parameter sharing model
 - HS_tuned_loss_weights: hard parameter sharing with pretrained weights and optimized loss scales
 
-Quaitatively, a single prediction on the validation set of Cityscapes looks like this:
+Qualitatively, a single prediction on the validation set of Cityscapes looks like this:
 ![Cityscapes prediction](assets/cityscapes_sample_preds.png)
 
-MTAN and pretrained hard parameter sharing model achieved comparable results and consistently outperformed other models. MTAN performs best on all the metrics related to semantic segmentation, but shows the worst performance on the depth estimation task. This indicates that the default task balancing strategy (loss weights, capacity of task-specific subnetworks) is suboptimal for this model. Hard parameter sharing models perform better than the soft parameter sharing model in terms of all the metrics. The tuned hard parameter sharing model performs better on depth estimation (and segmentation) than a vanilla one, although the optimization objective included only accuracy on the segmentation task.
+MTAN and pretrained hard parameter sharing model achieved comparable results and consistently outperformed other models. MTAN performs best on all the metrics related to semantic segmentation but shows the worst performance on the depth estimation task. This indicates that the default task-balancing strategy (loss weights, capacity of task-specific subnetworks) is suboptimal for this model. Hard parameter sharing models perform better than the soft parameter sharing model regarding all metrics. The tuned hard parameter sharing model performs better on depth estimation (and segmentation) than a vanilla one, although the optimization objective included only accuracy on the segmentation task.
 
 Aggregated metrics obtained on the validation set of `NYUv2`:
 
@@ -240,13 +240,13 @@ Aggregated metrics obtained on the validation set of `NYUv2`:
 Qualitatively, for a random sample from the validation set:
 ![NYUv2 prediction](assets/nyuv2_sample_preds.png)
 
-Contrary to the previous case, the best performance on NYUv2 is achieved by the hard parameter sharing models with and without pretraining, as both models arrived at numbers with negligible difference. MTAN is the runner-up with a substantial drop in the metrics related to depth estimation. Since it was also worse in the MAE for Cityscapes, balancing out segmentation and depth, e.g., via loss weighting, could lead to an improvement. The HS network trained with tuned loss weights performs better than the vanilla one which is in line with the results on Cityscapes.
+Contrary to the previous case, the best performance on NYUv2 is achieved by the hard parameter sharing models with and without pretraining, as both models arrived at numbers with negligible differences. MTAN is the runner-up with a substantial drop in the metrics related to depth estimation. Since it was also worse in the MAE for Cityscapes, balancing out segmentation and depth, e.g., via loss weighting, could lead to an improvement. The HS network trained with tuned loss weights performs better than the vanilla one which is in line with the results on Cityscapes.
 
 ## Summary
 
-Overall, the results show that the simplest approach - hard parameter sharing - is competitive with more complex models, although it is not flexible enough to achieve the best performance consistently across different datasets. Usage of pretrained weights helps to improve the performance of the model, but the effect could be diminished by the domain drift between the pretraining and the target dataset (e.g., Imagenet vs NYUv2). Hyperparameter tuning of the loss weights could be a viable strategy to improve the performance, but the optimization objective should be carefully chosen to account for multiple tasks.
+Overall, the results show that the simplest approach - hard parameter sharing - is competitive with more complex models. However, it is not flexible enough to achieve the best performance consistently across different datasets. The usage of pretrained weights helps to improve the performance of the model, but the effect could be diminished by the domain drift between the pretraining and the target dataset (e.g., Imagenet vs NYUv2). Hyperparameter tuning of the loss weights could be a viable strategy to improve performance, but the optimization objective should be carefully chosen to account for multiple tasks.
 
-Soft parameter sharing, aiming to offer better generalization than hard parameter sharing, does not show a clear advantage, which could be due to the fact that its default configuration is suboptimal for the chosen cases. The MTAN model, which is the most complex out of the three, shows promising results, but similar to the soft parameter sharing model, it requires tuning of the subnetworks and more fine-grained task balancing to achieve the best performance.
+Soft parameter sharing, aiming to offer better generalization than hard parameter sharing, does not show a clear advantage, which could be because its default configuration is suboptimal for the chosen cases. The MTAN model, which is the most complex of the three, shows promising results. However, similar to the soft parameter sharing model, it requires tuning of the subnetworks and more fine-grained task balancing to achieve the best performance.
 
 ## References
 
