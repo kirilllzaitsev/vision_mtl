@@ -23,7 +23,7 @@ In depth estimation, the network solves a pixel-wise regression problem, where e
 
 ### Cityscapes
 
-Cityscapes covers a set of urban street scenes from 50 different cities, offering a benchmark for outdoor scene understanding. The dataset contains 8925 training samples and 1500 validation samples. The images are of size 128x256. The semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1].
+Cityscapes covers a set of urban street scenes from 50 different cities, offering a benchmark for outdoor scene understanding. The current version of the dataset contains 2975 training samples and 500 validation samples. The images are of size 128x256. The semantic segmentation task has 19 classes, while depths are represented as relative values ([inverse depth](https://robotics.stackexchange.com/questions/6334/what-is-inverse-depth-in-odometry-and-why-would-i-use-it)) in the range [0, 1].
 
 Sample input:
 
@@ -31,7 +31,7 @@ Sample input:
 
 ### NYUv2
 
-NYUv2 is a dataset for indoor scene understanding. Coming in multiple versions, the one used in this work contains 795 training and 654 validation samples. The images are of size 480x640. There are 13 classes for semantic segmentation and depths are represented as absolute values in the range [0, 10].
+NYUv2 is a dataset for indoor scene understanding. Coming in multiple versions, the one used in this work contains 795 training and 654 validation samples. The original images are of size 480x640. There are 13 classes for semantic segmentation and depths are represented as absolute values in the range [0, 10].
 
 Sample input:
 
@@ -111,7 +111,7 @@ For CSNet the `model_name` argument is `csnet`, while for MTAN it is `mtan`. The
 
 Metrics, images, session, and model checkpoints are logged to Comet ML according to the `LoggerConfig` setup in `cfg.py`. Metrics are also logged to Tensorboard under the local `lightning_logs` directory.
 
-For Cityscapes, the `num_epochs` is set to 20, while for NYUv2 it is 50. For both datasets, the training set is split into training and validation sets with a ratio of 0.8.
+For Cityscapes, the image resolution is preserved, while for NYUv2 the samples are resized to (256, 256). For both datasets, the training set is split into training and validation sets with a ratio of 0.8. More training parameters are found in the `train_args.yaml` files in the corresponding artifact directories described in the [Using trained models](#using-trained-models) section.
 
 Scripts to train the models are provided in the `scripts` directory.
 
@@ -183,7 +183,7 @@ Files:
 
 ### Using trained models
 
-Weights of the trained models as well as CLI arguments for training are available for download from Google Drive:
+Weights of the trained models (`model_*.pt`) as well as CLI arguments for training (`train_args.yaml`) are available for download from Google Drive:
 
 | | Cityscapes | NYUv2 |
 |:---|:---:|:---:|
