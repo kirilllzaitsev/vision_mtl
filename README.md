@@ -45,6 +45,44 @@ Sample input:
 - (optional) `conda create -n mtl python=3.9`
 - `pip install -r requirements.txt`
 
+### Datasets
+
+- upon downloading the datasets, create symlinks pointing to them in `vision_mtl/data`. For UNIX systems:
+
+```
+cd vision_mtl/data || exit 1
+ln -s /abs/path/to/cityscapes cityscapes
+ln -s /abs/path/to/nyuv2 nyuv2
+```
+
+The expected directory structure is:
+
+```
+data/
+├── cityscapes -> /abs/path/to/cityscapes
+│   ├── train
+│   │   ├── depth
+|   |   |   └── *.npy
+│   │   ├── image
+│   │   └── label
+│   └── val
+│       ├── depth
+│       ├── image
+│       └── label
+└── nyuv2 -> /abs/path/to/nyuv2
+    ├── test_depth
+    |   └── *.png
+    ├── test_rgb
+    ├── test_seg13
+    ├── test_sn
+    ├── train_depth
+    ├── train_rgb
+    ├── train_seg13
+    └── train_sn
+```
+
+See the data-related configs in `cfg.py` and the corresponding datasets under `vision_mt/data_modules` for more details.
+
 ### Other
 
 - (optional) Comet ML account for experiment tracking (see [here](https://www.comet.ml/docs/python-sdk/quickstart/))
