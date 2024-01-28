@@ -226,142 +226,7 @@ def predict(
     return preds, predict_metrics
 
 
-def init_model(args: argparse.Namespace, data_cfg: DataConfig) -> MTLModule:
-    """Initialize model and load checkpoint if specified in args."""
-    model = build_model(args, data_cfg)
-    module = MTLModule(
-        model=model, num_classes=data_cfg.num_classes, lr=args.lr, device=args.device
-    )
-    if args.ckpt_dir:
-        module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
-    return module
-
-
-def optuna_objective(
-    trial: optuna.Trial, args: argparse.Namespace, data_cfg: DataConfig
-) -> float:
-    """Optuna objective function that is evaluated at each trial. Returns the validation accuracy."""
-    param_keys = ["loss_segm_weight", "loss_depth_weight"]
-    loss_weights = {k: trial.suggest_float(k, 0.0, 1.0) for k in param_keys}
-
-    args = update_args(args, loss_weights)
-
-    main_components = create_main_components(init_model, args, data_cfg)
-    datamodule = main_components["datamodule"]
-    module = main_components["module"]
-
-    tools = create_tools(args)
-    exp = tools["exp"]
-    logger = tools["logger"]
-
-    exp.add_tags([f"trial_{trial.number}"])
-
-    fit_metrics = run_pipe(
-        args,
-        module,
-        datamodule,
-        args.num_epochs,
-        cfg.device,
-        exp=exp,
-        logger=logger,
-    )
-
-    return np.mean(fit_metrics["val"]["accuracy"])
-
-
-def run_study(args: argparse.Namespace, data_cfg: DataConfig) -> t.Dict[str, float]:
-    """Run optuna study to find best hyperparameters. In this case, it picks those that maximize the validation accuracy."""
-
-    pruner: optuna.pruners.BasePruner = optuna.pruners.MedianPruner()
-
-    study = optuna.create_study(direction="maximize", pruner=pruner)
-    args = copy.deepcopy(args)
-    args.num_epochs = 3
-
-    objective = functools.partial(optuna_objective, args=args, data_cfg=data_cfg)
-    study.optimize(objective, n_trials=args.n_trials, timeout=None, n_jobs=args.n_jobs)
-
-    pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
-    complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
-
-    print("Study statistics: ")
-    print("  Number of finished trials: ", len(study.trials))
-    print("  Number of pruned trials: ", len(pruned_trials))
-    print("  Number of complete trials: ", len(complete_trials))
-    print("Number of finished trials: {}".format(len(study.trials)))
-
-    print("Best trial:")
-    trial = study.best_trial
-
-    print("  Value: {}".format(trial.value))
-
-    print("Trail with : \n")
-    print("=========================================")
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
-
-    return trial.params
-
-
-def create_tools(args: argparse.Namespace) -> t.Dict[str, t.Any]:
-    """Create experiment and logger."""
-
-    exp = create_tracking_exp(args)
-    if not args.exp_disabled:
-        args.run_name = exp.name
-    log_params_to_exp(
-        exp,
-        vars(args),
-        "args",
-    )
-    extra_tags = [args.model_name, args.dataset_name]
-    exp.add_tags(extra_tags + args.exp_tags)
-
-    log_subdir_name = f"training-{args.model_name}"
-    if args.run_name:
-        log_subdir_name += f"/{args.run_name}"
-    logger = TensorBoardLogger(cfg.log_root_dir, name=log_subdir_name)
-    os.makedirs(logger.log_dir, exist_ok=True)
-    log_args(args, f"{logger.log_dir}/train_args.yaml", exp=exp)
-    return {
-        "exp": exp,
-        "logger": logger,
-    }
-
-
-def create_main_components(
-    init_model: t.Callable, args: argparse.Namespace, data_cfg: DataConfig
-) -> t.Dict[str, t.Any]:
-    """Create datamodule and model."""
-    datamodule = MTLDataModule(
-        dataset_name=args.dataset_name,
-        batch_size=args.batch_size,
-        do_overfit=args.do_overfit,
-        num_workers=args.num_workers,
-        train_transform=data_cfg.train_transform,
-        test_transform=data_cfg.test_transform,
-    )
-    datamodule.setup()
-
-    module = init_model(args, data_cfg)
-    return {
-        "datamodule": datamodule,
-        "module": module,
-    }
-
-
-def update_args(
-    args: argparse.Namespace, kv_map: t.Dict[str, float]
-) -> argparse.Namespace:
-    """Update existing keys in args with new values for these keys from kv_map."""
-    for k, v in kv_map.items():
-        assert hasattr(args, k)
-        setattr(args, k, v)
-    return args
-
-
-if __name__ == "__main__":
+def main():
     args = parse_args()
     cfg.update_fields_with_args(args)
 
@@ -371,6 +236,8 @@ if __name__ == "__main__":
     module = main_components["module"]
 
     if args.do_optimize:
+        from vision_mtl.hyperparam_tuning import run_study
+
         optimal_params = run_study(args, data_cfg)
         update_args(args, optimal_params)
         args.exp_tags += ["best_trial"]
@@ -410,3 +277,8 @@ if __name__ == "__main__":
             step=args.num_epochs,
         )
 
+    exp.end()
+
+
+if __name__ == "__main__":
+    main()
