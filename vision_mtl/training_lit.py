@@ -222,8 +222,7 @@ def predict(
             if do_show_preds:
                 plt.show()
             plt.close()
-    stage = "predict"
-    predict_metrics = summarize_epoch_metrics(module.step_outputs[stage])
+    predict_metrics = module.on_predict_epoch_end()
     return preds, predict_metrics
 
 

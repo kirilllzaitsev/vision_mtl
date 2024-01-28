@@ -186,6 +186,10 @@ class MTLModule(pl.LightningModule):
         metrics = self.shared_epoch_end(stage="test")
         return metrics
 
+    def on_predict_epoch_end(self):
+        metrics = self.shared_epoch_end(stage="predict")
+        return metrics
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(params=self.parameters(), lr=self.hparams.lr)
 

@@ -102,9 +102,19 @@ def plot_annotated_segm_mask_v1(mask: np.ndarray, class_names: list) -> plt.Figu
     return fig
 
 
-def plot_preds(batch_size: int, inputs_batch: dict, preds_batch: dict) -> plt.Figure:
+def plot_preds(
+    batch_size: int,
+    inputs_batch: dict,
+    preds_batch: dict,
+    ax: t.Optional[np.ndarray] = None,
+    return_ax: bool = False,
+) -> t.Union[plt.Figure, np.ndarray]:
     ncols = 1 + 2 + 2
-    fig, ax = plt.subplots(batch_size, ncols, figsize=(10, ncols * batch_size))
+    if ax is None:
+        fig, ax = plt.subplots(batch_size, ncols, figsize=(5 * batch_size, ncols * batch_size))
+    else:
+        fig = ax[0].get_figure()
+
     for row_idx in range(batch_size):
         if batch_size == 1:
             ax_0 = ax[0]
@@ -131,16 +141,19 @@ def plot_preds(batch_size: int, inputs_batch: dict, preds_batch: dict) -> plt.Fi
         ax_3.imshow(gt_segm.squeeze().cpu().numpy())
         ax_4.imshow(pred_segm.squeeze().cpu().numpy())
 
-        ax_0.set_title("Input image")
-        ax_1.set_title("Ground truth depth")
-        ax_2.set_title("Prediction depth")
-        ax_3.set_title("Ground truth segm")
-        ax_4.set_title("Prediction segm")
+        ax_0.set_title("RGB", fontsize=20)
+        ax_1.set_title("GT depth", fontsize=20)
+        ax_2.set_title("Predicted depth", fontsize=20)
+        ax_3.set_title("GT mask", fontsize=20)
+        ax_4.set_title("Predicted mask", fontsize=20)
 
-        for ax_ in [ax_1, ax_2, ax_3, ax_4]:
-            ax_.axis("off")
+        for ax_ in [ax_0, ax_1, ax_2, ax_3, ax_4]:
+            ax_.set_xticks([])
+            ax_.set_yticks([])
 
         ax_0.set_ylabel(f"Sample {row_idx}")
+    if return_ax:
+        return ax
     return fig
 
 
