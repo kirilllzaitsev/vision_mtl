@@ -402,3 +402,11 @@ if __name__ == "__main__":
         do_show_preds=args.do_show_preds,
     )
     torch.save(preds, os.path.join(logger.log_dir, "preds.pt"))
+
+    print_metrics("predict", predict_metrics)
+    if exp:
+        exp.log_metrics(
+            {f"epoch/{k}": v for k, v in predict_metrics.items()},
+            step=args.num_epochs,
+        )
+
