@@ -50,3 +50,12 @@ def get_module_by_name(module: torch.nn.Module, access_string: str) -> torch.nn.
     """
     names = access_string.split(sep=".")
     return reduce(getattr, names, module)
+
+
+def print_sample_stats(sample: dict) -> None:
+    for k in sample:
+        print(k)
+        print(f"{sample[k].shape=}")
+        print(f"{sample[k].min()=} {sample[k].max()=}")
+        print(f" {sample[k].median()=} {sample[k].dtype=}")
+        print("-" * 10)
