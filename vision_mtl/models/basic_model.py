@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from segmentation_models_pytorch.base import SegmentationHead
 
-from vision_mtl.models.model_utils import Backbone
+from vision_mtl.utils.model_utils import Backbone
 
 
 class BasicMTLModel(nn.Module):

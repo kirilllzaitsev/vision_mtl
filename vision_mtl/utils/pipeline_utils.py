@@ -12,7 +12,7 @@ import yaml
 from vision_mtl.cfg import DataConfig, cfg, cityscapes_data_cfg, nyuv2_data_cfg
 from vision_mtl.models.basic_model import BasicMTLModel
 from vision_mtl.models.cross_stitch_model import CSNet
-from vision_mtl.models.model_utils import get_model_with_dense_preds
+from vision_mtl.utils.model_utils import get_model_with_dense_preds
 from vision_mtl.models.mtan_model import MTANMiniUnet
 
 

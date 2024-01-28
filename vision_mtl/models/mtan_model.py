@@ -4,7 +4,7 @@ import typing as t
 import torch
 from torch import nn
 
-from vision_mtl.models.model_utils import DoubleConv, concat_slightly_diff_sized_tensors
+from vision_mtl.utils.model_utils import DoubleConv, concat_slightly_diff_sized_tensors
 
 log = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from vision_mtl.models.model_utils import (
+from vision_mtl.utils.model_utils import (
     concat_slightly_diff_sized_tensors,
     get_joint_layer_names_before_stitch_for_unet,
 )
@@ -202,7 +202,7 @@ class CSNet(nn.Module):
 
 
 if __name__ == "__main__":
-    from vision_mtl.models.model_utils import get_model_with_dense_preds
+    from vision_mtl.utils.model_utils import get_model_with_dense_preds
 
     x = torch.randn(2, 3, 224, 224)
     num_classes = 10

@@ -8,7 +8,7 @@ import torchvision.transforms as T
 from torch.utils.data import DataLoader
 
 from vision_mtl.cfg import cfg
-from vision_mtl.data_modules.ds_cityscapes import CityscapesDataset
+from vision_mtl.data_modules.cityscapes import CityscapesDataset
 from vision_mtl.data_modules.nyuv2 import NYUv2
 
 
