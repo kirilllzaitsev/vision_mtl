@@ -6,39 +6,44 @@ import torch
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument("--do_optimize", action="store_true")
-    parser.add_argument("--do_plot_preds", action="store_true")
-    parser.add_argument("--do_show_preds", action="store_true")
-    parser.add_argument("--exp_disabled", action="store_true")
-    parser.add_argument("--channel_wise_stitching", action="store_true")
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--num_epochs", type=int, default=10)
-    parser.add_argument("--num_workers", type=int, default=0)
-    parser.add_argument("--val_epoch_freq", type=int, default=1)
-    parser.add_argument("--save_epoch_freq", type=int, default=10)
-    parser.add_argument("--n_trials", type=int, default=7)
-    parser.add_argument("--n_jobs", type=int, default=2)
-    parser.add_argument(
-        "--model_name",
-        choices=[
-            "basic",
-            "mtan",
-            "csnet",
-        ],
-        default="basic",
+
+    pipe_args = parser.add_argument_group("pipe")
+    pipe_args.add_argument("--do_overfit", action="store_true")
+    pipe_args.add_argument("--do_optimize", action="store_true")
+    pipe_args.add_argument("--do_plot_preds", action="store_true")
+    pipe_args.add_argument("--do_show_preds", action="store_true")
+    pipe_args.add_argument("--exp_disabled", action="store_true")
+    pipe_args.add_argument("--ckpt_dir")
+    pipe_args.add_argument("--run_name")
+    pipe_args.add_argument("--device", default="cuda:0")
+    pipe_args.add_argument("--exp_tags", nargs="*", default=[])
+
+    model_args = parser.add_argument_group("model")
+    model_args.add_argument(
+        "--model_name", choices=["basic", "mtan", "csnet"], default="basic"
     )
-    parser.add_argument("--ckpt_dir")
-    parser.add_argument("--run_name")
-    parser.add_argument(
+    model_args.add_argument("--backbone_weights", choices=["imagenet"])
+    model_args.add_argument("--channel_wise_stitching", action="store_true")
+
+    data_args = parser.add_argument_group("data")
+    data_args.add_argument(
         "--dataset_name", choices=["cityscapes", "nyuv2"], default="cityscapes"
     )
-    parser.add_argument("--backbone_weights", choices=["imagenet"])
-    parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--lr", type=float, default=5e-3)
-    parser.add_argument("--loss_segm_weight", type=float, default=1)
-    parser.add_argument("--loss_depth_weight", type=float, default=1)
-    parser.add_argument("--exp_tags", nargs="*", default=[])
+    data_args.add_argument("--batch_size", type=int, default=1)
+    data_args.add_argument("--num_workers", type=int, default=0)
+
+    optuna_args = parser.add_argument_group("opt")
+    optuna_args.add_argument("--n_trials", type=int, default=7)
+    optuna_args.add_argument("--n_jobs", type=int, default=2)
+
+    trainer_args = parser.add_argument_group("trainer")
+    trainer_args.add_argument("--lr", type=float, default=5e-3)
+    trainer_args.add_argument("--loss_segm_weight", type=float, default=1)
+    trainer_args.add_argument("--loss_depth_weight", type=float, default=1)
+    trainer_args.add_argument("--num_epochs", type=int, default=10)
+    trainer_args.add_argument("--val_epoch_freq", type=int, default=1)
+    trainer_args.add_argument("--save_epoch_freq", type=int, default=10)
+
     args, _ = parser.parse_known_args()
     return args
 
