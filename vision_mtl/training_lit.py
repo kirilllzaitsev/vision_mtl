@@ -2,13 +2,10 @@
 The reason for this is that the Lightning module does not get optimized withe the PyTorch Lightning Trainer."""
 
 import argparse
-import copy
-import functools
 import os
 from collections import defaultdict
 
-import optuna
-from optuna.trial import TrialState
+from vision_mtl.utils.loss_utils import print_metrics
 
 if os.environ.get("DISPLAY") != ":0":
     import matplotlib
@@ -19,26 +16,21 @@ import typing as t
 
 import comet_ml
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 from pytorch_lightning.loggers import TensorBoardLogger
 from tqdm import tqdm
 
-from vision_mtl.cfg import DataConfig, cfg
+from vision_mtl.cfg import cfg
 from vision_mtl.lit_datamodule import MTLDataModule
 from vision_mtl.lit_module import MTLModule
 from vision_mtl.utils.pipeline_utils import (
-    build_model,
-    create_tracking_exp,
+    create_main_components,
+    create_tools,
     fetch_data_cfg,
-    load_ckpt_model,
-    log_args,
-    log_params_to_exp,
-    print_metrics,
+    init_model,
     save_ckpt,
-    summarize_epoch_metrics,
 )
-from vision_mtl.utils.utils import parse_args
+from vision_mtl.utils.utils import parse_args, update_args
 from vision_mtl.utils.vis_utils import plot_preds
 
 
@@ -99,7 +91,7 @@ def run_pipe(
                 logger.log_metrics({f"step/{stage}/{k}": v[-1]}, step=global_step)
                 if exp:
                     exp.log_metric(f"step/{stage}/{k}", v[-1], step=global_step)
-            pbar_postfix = print_metrics(f"{stage}", module.step_outputs[stage])
+            pbar_postfix = print_metrics(stage, module.step_outputs[stage])
             train_pbar.set_postfix_str(pbar_postfix)
             train_pbar.update()
 
@@ -151,7 +143,7 @@ def run_pipe(
                         logger.log_metrics({f"step/{stage}/{k}": v[-1]}, step=val_step)
                         if exp:
                             exp.log_metric(f"step/{stage}/{k}", v[-1], step=val_step)
-                    pbar_postfix = print_metrics(f"{stage}", module.step_outputs[stage])
+                    pbar_postfix = print_metrics(stage, module.step_outputs[stage])
                     val_pbar.set_postfix_str(pbar_postfix)
                     val_pbar.update()
 
@@ -187,8 +179,6 @@ def run_pipe(
                 save_path_session=save_path_session,
                 exp=exp,
             )
-
-    exp.end()
 
     return epoch_metrics
 

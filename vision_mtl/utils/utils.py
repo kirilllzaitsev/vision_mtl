@@ -1,4 +1,5 @@
 import argparse
+import typing as t
 from functools import reduce
 
 import torch
@@ -64,3 +65,13 @@ def print_sample_stats(sample: dict) -> None:
         print(f"{sample[k].min()=} {sample[k].max()=}")
         print(f" {sample[k].median()=} {sample[k].dtype=}")
         print("-" * 10)
+
+
+def update_args(
+    args: argparse.Namespace, kv_map: t.Dict[str, float]
+) -> argparse.Namespace:
+    """Update existing keys in args with new values for these keys from kv_map."""
+    for k, v in kv_map.items():
+        assert hasattr(args, k)
+        setattr(args, k, v)
+    return args

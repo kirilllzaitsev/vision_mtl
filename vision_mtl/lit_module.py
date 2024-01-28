@@ -10,7 +10,7 @@ from torchmetrics import Accuracy, FBetaScore, JaccardIndex, MeanAbsoluteError
 from vision_mtl.cfg import cfg
 from vision_mtl.losses import SILogLoss
 from vision_mtl.models.basic_model import BasicMTLModel
-from vision_mtl.utils.pipeline_utils import summarize_epoch_metrics
+from vision_mtl.utils.loss_utils import summarize_epoch_metrics
 
 
 class MTLModule(pl.LightningModule):

@@ -8,12 +8,73 @@ import typing as t
 import comet_ml
 import torch
 import yaml
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from vision_mtl.cfg import DataConfig, cfg, cityscapes_data_cfg, nyuv2_data_cfg
+from vision_mtl.lit_datamodule import MTLDataModule
+from vision_mtl.lit_module import MTLModule
 from vision_mtl.models.basic_model import BasicMTLModel
 from vision_mtl.models.cross_stitch_model import CSNet
-from vision_mtl.utils.model_utils import get_model_with_dense_preds
 from vision_mtl.models.mtan_model import MTANMiniUnet
+from vision_mtl.utils.model_utils import get_model_with_dense_preds
+
+
+def init_model(args: argparse.Namespace, data_cfg: DataConfig) -> MTLModule:
+    """Initialize model and load checkpoint if specified in args."""
+    model = build_model(args, data_cfg)
+    module = MTLModule(
+        model=model, num_classes=data_cfg.num_classes, lr=args.lr, device=args.device
+    )
+    if args.ckpt_dir:
+        module.load_state_dict(load_ckpt_model(args.ckpt_dir)["model"])
+    return module
+
+
+def create_tools(args: argparse.Namespace) -> t.Dict[str, t.Any]:
+    """Create experiment and logger."""
+
+    exp = create_tracking_exp(args)
+    if not args.exp_disabled:
+        args.run_name = exp.name
+    log_params_to_exp(
+        exp,
+        vars(args),
+        "args",
+    )
+    extra_tags = [args.model_name, args.dataset_name]
+    exp.add_tags(extra_tags + args.exp_tags)
+
+    log_subdir_name = f"training-{args.model_name}"
+    if args.run_name:
+        log_subdir_name += f"/{args.run_name}"
+    logger = TensorBoardLogger(cfg.log_root_dir, name=log_subdir_name)
+    os.makedirs(logger.log_dir, exist_ok=True)
+    log_args(args, f"{logger.log_dir}/train_args.yaml", exp=exp)
+    return {
+        "exp": exp,
+        "logger": logger,
+    }
+
+
+def create_main_components(
+    init_model: t.Callable, args: argparse.Namespace, data_cfg: DataConfig
+) -> t.Dict[str, t.Any]:
+    """Create datamodule and model."""
+    datamodule = MTLDataModule(
+        dataset_name=args.dataset_name,
+        batch_size=args.batch_size,
+        do_overfit=args.do_overfit,
+        num_workers=args.num_workers,
+        train_transform=data_cfg.train_transform,
+        test_transform=data_cfg.test_transform,
+    )
+    datamodule.setup()
+
+    module = init_model(args, data_cfg)
+    return {
+        "datamodule": datamodule,
+        "module": module,
+    }
 
 
 def build_model(
@@ -73,46 +134,6 @@ def build_model(
     else:
         raise NotImplementedError(f"Unknown model name: {args.model_name}")
     return model
-
-
-def summarize_epoch_metrics(
-    step_results: dict, metric_name_prefix: t.Optional[str] = None
-) -> dict:
-    """Average the metrics in step_results and return them as a dict."""
-
-    if metric_name_prefix is None:
-        metric_name_prefix = ""
-    else:
-        metric_name_prefix += "/"
-    metrics = {
-        f"{metric_name_prefix}{k}": torch.mean(
-            torch.tensor([v for v in step_results[k]])
-        ).item()
-        for k in step_results.keys()
-    }
-    for key in step_results.keys():
-        step_results[key].clear()
-    return metrics
-
-
-def print_metrics(prefix: str, train_epoch_metrics: dict) -> str:
-    """Assemble a string out of the metrics and print it."""
-
-    metrics_str = ""
-    for k, v in train_epoch_metrics.items():
-        if isinstance(v, torch.Tensor):
-            if v.numel() > 1:
-                value = v[-1]
-            else:
-                value = v.item()
-        else:
-            if isinstance(v, numbers.Number):
-                value = v
-            else:
-                value = v[-1]
-        print(f"{prefix}/{k}: {value:.3f} ")
-        metrics_str += f"{k}: {value:.3f} "
-    return metrics_str
 
 
 def save_ckpt(
