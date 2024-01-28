@@ -24,8 +24,8 @@ model_to_exp_name = {
         "nyuv2": "historic_shrub_7311",
     },
     "mtan": {
-        "cityscapes": "white_spice_5973",
-        "nyuv2": "valid_preservative_4767",
+        "cityscapes": "developing_mall_5798",
+        "nyuv2": "eligible_damselfly_3906",
     },
 }
 
